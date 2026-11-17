@@ -1,6 +1,14 @@
-import { AuthSession, DEFAULT_LOGO_PATH, StudentRecord } from './types';
+import {
+  AdminAccount,
+  AuthSession,
+  DEFAULT_LOGO_PATH,
+  InstructorAccount,
+  StudentRecord,
+} from './types';
 
 const STUDENTS_KEY = 'fusaha_students_v1';
+const INSTRUCTORS_KEY = 'fusaha_instructors_v1';
+const ADMINS_KEY = 'fusaha_admins_v1';
 const LOGO_KEY = 'fusaha_school_logo_v1';
 const SESSION_KEY = 'fusaha_session_v1';
 
@@ -101,6 +109,30 @@ export const DEMO_STUDENTS: StudentRecord[] = [
   },
 ];
 
+export const DEMO_INSTRUCTORS: InstructorAccount[] = [
+  {
+    id: 'INST-ACC-001',
+    staffId: 'INST-FDS-001',
+    fullName: 'Lawal Kudai',
+    email: 'instructor@fusaha.com',
+    phone: '08030435429',
+    specialty: 'Class B, Class C & Class E',
+    password: 'inst123',
+    createdAt: daysAgoIso(90),
+  },
+];
+
+export const DEMO_ADMINS: AdminAccount[] = [
+  {
+    id: 'ADM-ACC-001',
+    fullName: 'Lawal Shuaibu',
+    email: 'admin@fusaha.com',
+    phone: '08030435429',
+    password: 'admin123',
+    createdAt: daysAgoIso(120),
+  },
+];
+
 export function loadStudents(): StudentRecord[] {
   try {
     const raw = localStorage.getItem(STUDENTS_KEY);
@@ -124,6 +156,58 @@ export function saveStudents(students: StudentRecord[]): void {
     localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
   } catch {
     // Ignore storage quota errors gracefully
+  }
+}
+
+export function loadInstructors(): InstructorAccount[] {
+  try {
+    const raw = localStorage.getItem(INSTRUCTORS_KEY);
+    if (!raw) {
+      localStorage.setItem(INSTRUCTORS_KEY, JSON.stringify(DEMO_INSTRUCTORS));
+      return DEMO_INSTRUCTORS;
+    }
+    const parsed = JSON.parse(raw) as InstructorAccount[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      localStorage.setItem(INSTRUCTORS_KEY, JSON.stringify(DEMO_INSTRUCTORS));
+      return DEMO_INSTRUCTORS;
+    }
+    return parsed;
+  } catch {
+    return DEMO_INSTRUCTORS;
+  }
+}
+
+export function saveInstructors(instructors: InstructorAccount[]): void {
+  try {
+    localStorage.setItem(INSTRUCTORS_KEY, JSON.stringify(instructors));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+export function loadAdmins(): AdminAccount[] {
+  try {
+    const raw = localStorage.getItem(ADMINS_KEY);
+    if (!raw) {
+      localStorage.setItem(ADMINS_KEY, JSON.stringify(DEMO_ADMINS));
+      return DEMO_ADMINS;
+    }
+    const parsed = JSON.parse(raw) as AdminAccount[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      localStorage.setItem(ADMINS_KEY, JSON.stringify(DEMO_ADMINS));
+      return DEMO_ADMINS;
+    }
+    return parsed;
+  } catch {
+    return DEMO_ADMINS;
+  }
+}
+
+export function saveAdmins(admins: AdminAccount[]): void {
+  try {
+    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
+  } catch {
+    // Ignore storage quota errors
   }
 }
 

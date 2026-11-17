@@ -8,15 +8,17 @@ import {
   Search,
   UserCheck,
 } from 'lucide-react';
-import { COURSE_PACKAGES, SCHOOL_INFO, StudentRecord } from '../types';
+import { AuthSession, COURSE_PACKAGES, SCHOOL_INFO, StudentRecord } from '../types';
 
 interface InstructorPortalProps {
+  session: AuthSession;
   students: StudentRecord[];
   onUpdateStudent: (updated: StudentRecord) => void;
   onLogout: () => void;
 }
 
 export const InstructorPortal: React.FC<InstructorPortalProps> = ({
+  session,
   students,
   onUpdateStudent,
   onLogout,
@@ -94,12 +96,28 @@ export const InstructorPortal: React.FC<InstructorPortalProps> = ({
             Instructor Portal · {SCHOOL_INFO.name}
           </div>
           <h1 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-slate-900">
-            Student Roster, Attendance &amp; Practical Scorecard
+            Welcome, {session.displayName}
           </h1>
-          <p className="mt-1 text-xs text-slate-600">
-            Log physical campus sessions, enter theory test results, evaluate practical driving,
-            and certify 1-month training completion.
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 font-mono-tabular">
+            <span>
+              Instructor ID:{' '}
+              <strong className="text-[#0A2E7A]">{session.staffId || 'INST-FDS-001'}</strong>
+            </span>
+            {session.specialty && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="font-sans">
+                  Specialty: <strong className="text-slate-800">{session.specialty}</strong>
+                </span>
+              </>
+            )}
+            {session.email && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{session.email}</span>
+              </>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -107,7 +125,7 @@ export const InstructorPortal: React.FC<InstructorPortalProps> = ({
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer self-start sm:self-center whitespace-nowrap"
         >
           <LogOut className="h-4 w-4" />
-          <span>Logout</span>
+          <span>Sign Out</span>
         </button>
       </div>
 

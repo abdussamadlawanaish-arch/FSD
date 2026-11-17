@@ -29,13 +29,17 @@ import { BrandLogo } from './BrandLogo';
 
 interface LandingAndRegistrationProps {
   logoUrl: string;
+  existingNins: string[];
   onOpenLogin: () => void;
+  onOpenCreateAccount: () => void;
   onRegisterStudent: (newStudentData: Omit<StudentRecord, 'id' | 'receiptNumber' | 'clearanceNumber' | 'registeredAt' | 'amountPaid' | 'initialDepositVerified' | 'finalBalanceVerified' | 'attendanceSessions' | 'totalRequiredSessions' | 'theoryScore' | 'practicalScores' | 'instructorFeedback' | 'oneMonthTrainingCompleted'>) => void;
 }
 
 export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
   logoUrl,
+  existingNins,
   onOpenLogin,
+  onOpenCreateAccount,
   onRegisterStudent,
 }) => {
   const [selectedPackage, setSelectedPackage] = useState<CoursePackageId>('full_beginner');
@@ -57,6 +61,7 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
   const [nextOfKin, setNextOfKin] = useState('');
   const [nextOfKinPhone, setNextOfKinPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [formError, setFormError] = useState('');
 
   const handlePackageSelect = (pkgId: CoursePackageId) => {
@@ -97,8 +102,20 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
       return;
     }
 
+    if (existingNins.includes(cleanNin)) {
+      setFormError(
+        'An account with this NIN Number already exists. Please use Portal Sign In to access your account.'
+      );
+      return;
+    }
+
     if (password.trim().length < 5) {
       setFormError('Please create a portal password of at least 5 characters.');
+      return;
+    }
+
+    if (password.trim() !== confirmPassword.trim()) {
+      setFormError('Portal Password and Confirm Password do not match.');
       return;
     }
 
@@ -150,7 +167,7 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
                 href="#enroll"
                 className="inline-flex items-center gap-2 rounded-xl bg-[#0A2E7A] px-6 py-3 text-sm font-bold text-white hover:bg-[#082361] transition-colors whitespace-nowrap"
               >
-                <span>Register Now</span>
+                <span>Register / Create Account</span>
                 <ArrowRight className="h-4 w-4 text-[#F5B700]" />
               </a>
               <button
@@ -159,7 +176,14 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
                 className="inline-flex items-center gap-2 rounded-xl border border-[#0A2E7A]/25 bg-white px-5 py-3 text-sm font-semibold text-[#0A2E7A] hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <Lock className="h-4 w-4" />
-                <span>Portal Login</span>
+                <span>Portal Sign In</span>
+              </button>
+              <button
+                type="button"
+                onClick={onOpenCreateAccount}
+                className="text-xs font-semibold text-[#0A2E7A] underline underline-offset-4 hover:text-[#082361] cursor-pointer whitespace-nowrap"
+              >
+                Staff / Instructor Sign Up
               </button>
             </div>
 
@@ -586,9 +610,9 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
             {/* Emergency Contact & Portal Security */}
             <div>
               <div className="text-sm font-bold text-[#0A2E7A] mb-4">
-                Step 5. Emergency Contact &amp; Student Portal Password
+                Step 5. Emergency Contact &amp; Student Account Credentials
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Next of Kin *
@@ -619,7 +643,7 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Create Portal Password (For NIN Login) *
+                    Create Portal Password *
                   </label>
                   <div className="relative">
                     <input
@@ -640,6 +664,21 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Confirm Password *
+                  </label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={5}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter portal password"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A2E7A] focus:outline-none focus:ring-2 focus:ring-[#0A2E7A]/20"
+                  />
                 </div>
               </div>
             </div>

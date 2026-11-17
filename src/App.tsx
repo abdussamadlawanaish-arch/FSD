@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { Lock, LogOut, Menu, X } from 'lucide-react';
+import { Lock, LogOut, Menu, UserPlus, X } from 'lucide-react';
 import {
+  AdminAccount,
+  AuthMode,
   AuthSession,
+  InstructorAccount,
   PrintableDocType,
   SCHOOL_INFO,
   StudentRecord,
 } from './types';
 import {
   generateNextStudentId,
+  loadAdmins,
+  loadInstructors,
   loadLogoUrl,
   loadSession,
   loadStudents,
+  saveAdmins,
+  saveInstructors,
   saveLogoUrl,
   saveSession,
   saveStudents,
@@ -25,9 +32,14 @@ import { PrintableDocumentModal } from './components/PrintableDocuments';
 
 export default function App() {
   const [students, setStudents] = useState<StudentRecord[]>(() => loadStudents());
+  const [instructors, setInstructors] = useState<InstructorAccount[]>(() => loadInstructors());
+  const [admins, setAdmins] = useState<AdminAccount[]>(() => loadAdmins());
   const [logoUrl, setLogoUrl] = useState<string>(() => loadLogoUrl());
   const [session, setSession] = useState<AuthSession | null>(() => loadSession());
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [authModal, setAuthModal] = useState<{ isOpen: boolean; mode: AuthMode }>({
+    isOpen: false,
+    mode: 'signin',
+  });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeDocument, setActiveDocument] = useState<{
     student: StudentRecord;
@@ -55,7 +67,7 @@ export default function App() {
   const handleLoginSuccess = (nextSession: AuthSession) => {
     setSession(nextSession);
     saveSession(nextSession);
-    setLoginModalOpen(false);
+    setAuthModal({ isOpen: false, mode: 'signin' });
     setMobileNavOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -67,10 +79,55 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleCreateInstructor = (accountData: Omit<InstructorAccount, 'id' | 'createdAt'>) => {
+    const newInst: InstructorAccount = {
+      ...accountData,
+      id: `INST-ACC-${String(instructors.length + 1).padStart(3, '0')}`,
+      createdAt: new Date().toISOString(),
+    };
+    const nextList = [newInst, ...instructors];
+    setInstructors(nextList);
+    saveInstructors(nextList);
+
+    handleLoginSuccess({
+      role: 'instructor',
+      displayName: newInst.fullName,
+      staffId: newInst.staffId,
+      email: newInst.email,
+      specialty: newInst.specialty,
+      phone: newInst.phone,
+    });
+  };
+
+  const handleCreateAdmin = (accountData: Omit<AdminAccount, 'id' | 'createdAt'>) => {
+    const newAdmin: AdminAccount = {
+      ...accountData,
+      id: `ADM-ACC-${String(admins.length + 1).padStart(3, '0')}`,
+      createdAt: new Date().toISOString(),
+    };
+    const nextList = [newAdmin, ...admins];
+    setAdmins(nextList);
+    saveAdmins(nextList);
+
+    handleLoginSuccess({
+      role: 'admin',
+      displayName: newAdmin.fullName,
+      email: newAdmin.email,
+      phone: newAdmin.phone,
+    });
+  };
+
+  const handleGoToStudentRegistration = () => {
+    setAuthModal({ isOpen: false, mode: 'signin' });
+    setTimeout(() => {
+      const el = document.getElementById('enroll');
+      el?.scrollIntoView({ behavior: 'smooth' });
+    }, 60);
+  };
+
   const handleRegisterStudent: React.ComponentProps<
     typeof LandingAndRegistration
   >['onRegisterStudent'] = (formData) => {
-    const existingWithNin = students.find((s) => s.nin === formData.nin);
     const nextId = generateNextStudentId(students);
     const suffix = nextId.split('-').pop() || '001';
 
@@ -97,10 +154,7 @@ export default function App() {
       oneMonthTrainingCompleted: false,
     };
 
-    const nextList = existingWithNin
-      ? [newStudent, ...students.filter((s) => s.id !== existingWithNin.id)]
-      : [newStudent, ...students];
-
+    const nextList = [newStudent, ...students];
     handleUpdateStudents(nextList);
 
     const newSession: AuthSession = {
@@ -126,9 +180,9 @@ export default function App() {
       {/* Centered Global Website Background Logo Watermark */}
       <GlobalPageWatermark logoUrl={logoUrl} />
 
-      {/* Top Navigation Bar (Clean 3-Zone Contract) */}
+      {/* Top Navigation Bar */}
       <header className="no-print sticky top-0 z-40 border-b border-slate-200/90 bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
           {/* Zone 1: Brand Wordmark + Foreground Logo */}
           <a
             href="#home"
@@ -148,7 +202,7 @@ export default function App() {
 
           {/* Zone 2: Concise Single-Line Nav Links */}
           {!session ? (
-            <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
+            <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-600">
               <a
                 href="#home"
                 className="hover:text-[#0A2E7A] transition-colors whitespace-nowrap shrink-0"
@@ -165,7 +219,7 @@ export default function App() {
                 href="#enroll"
                 className="hover:text-[#0A2E7A] transition-colors whitespace-nowrap shrink-0"
               >
-                Register Now
+                Enrollment
               </a>
               <a
                 href="#bank-details"
@@ -178,7 +232,7 @@ export default function App() {
             <div className="hidden md:flex items-center gap-3 text-xs font-semibold text-slate-600 whitespace-nowrap shrink-0">
               <span className="text-[#0A2E7A] font-bold uppercase tracking-wider">
                 {session.role === 'admin'
-                  ? 'Admin Console'
+                  ? 'Admin Dashboard'
                   : session.role === 'instructor'
                   ? 'Instructor Portal'
                   : 'Student Portal'}
@@ -188,17 +242,27 @@ export default function App() {
             </div>
           )}
 
-          {/* Zone 3: Single Primary Action */}
+          {/* Zone 3: Account Actions */}
           <div className="flex items-center gap-2 shrink-0">
             {!session ? (
-              <button
-                type="button"
-                onClick={() => setLoginModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#0A2E7A] px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-[#082361] transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Lock className="h-3.5 w-3.5 text-[#F5B700]" />
-                <span>Portal Login</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-[#0A2E7A]/25 bg-white px-3.5 py-2 text-xs font-bold text-[#0A2E7A] hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span>Register / Create Account</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthModal({ isOpen: true, mode: 'signin' })}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2E7A] px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-[#082361] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Lock className="h-3.5 w-3.5 text-[#F5B700]" />
+                  <span>Portal Sign In</span>
+                </button>
+              </>
             ) : (
               <button
                 type="button"
@@ -206,7 +270,7 @@ export default function App() {
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 <LogOut className="h-3.5 w-3.5" />
-                <span>Logout</span>
+                <span>Sign Out</span>
               </button>
             )}
 
@@ -215,7 +279,7 @@ export default function App() {
                 type="button"
                 onClick={() => setMobileNavOpen((prev) => !prev)}
                 aria-label="Toggle navigation menu"
-                className="md:hidden rounded-lg p-2 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                className="lg:hidden rounded-lg p-2 text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
                 {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
@@ -225,7 +289,7 @@ export default function App() {
 
         {/* Mobile Dropdown Nav */}
         {!session && mobileNavOpen && (
-          <nav className="md:hidden border-t border-slate-200 bg-white px-4 py-3 flex flex-col gap-2 text-sm font-semibold text-slate-700">
+          <nav className="lg:hidden border-t border-slate-200 bg-white px-4 py-3 flex flex-col gap-2 text-sm font-semibold text-slate-700">
             <a
               href="#home"
               onClick={() => setMobileNavOpen(false)}
@@ -245,7 +309,7 @@ export default function App() {
               onClick={() => setMobileNavOpen(false)}
               className="py-1.5 hover:text-[#0A2E7A]"
             >
-              Register Now
+              Enrollment
             </a>
             <a
               href="#bank-details"
@@ -254,6 +318,16 @@ export default function App() {
             >
               GTBank Payment
             </a>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileNavOpen(false);
+                setAuthModal({ isOpen: true, mode: 'signup' });
+              }}
+              className="py-1.5 text-left font-bold text-[#0A2E7A]"
+            >
+              Register / Create Account
+            </button>
           </nav>
         )}
       </header>
@@ -263,7 +337,9 @@ export default function App() {
         {!session && (
           <LandingAndRegistration
             logoUrl={logoUrl}
-            onOpenLogin={() => setLoginModalOpen(true)}
+            existingNins={students.map((s) => s.nin)}
+            onOpenLogin={() => setAuthModal({ isOpen: true, mode: 'signin' })}
+            onOpenCreateAccount={() => setAuthModal({ isOpen: true, mode: 'signup' })}
             onRegisterStudent={handleRegisterStudent}
           />
         )}
@@ -278,6 +354,7 @@ export default function App() {
 
         {session?.role === 'instructor' && (
           <InstructorPortal
+            session={session}
             students={students}
             onUpdateStudent={handleUpdateStudent}
             onLogout={handleLogout}
@@ -286,7 +363,10 @@ export default function App() {
 
         {session?.role === 'admin' && (
           <AdminDashboard
+            session={session}
             students={students}
+            instructors={instructors}
+            admins={admins}
             logoUrl={logoUrl}
             onUpdateLogo={handleUpdateLogo}
             onUpdateStudent={handleUpdateStudent}
@@ -319,13 +399,19 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Role-Based Portal Login Modal */}
+      {/* Multi-Role Create Account & Portal Sign-In Modal */}
       <LoginModal
-        isOpen={loginModalOpen}
+        isOpen={authModal.isOpen}
+        initialMode={authModal.mode}
         students={students}
+        instructors={instructors}
+        admins={admins}
         logoUrl={logoUrl}
-        onClose={() => setLoginModalOpen(false)}
+        onClose={() => setAuthModal({ isOpen: false, mode: 'signin' })}
         onLoginSuccess={handleLoginSuccess}
+        onCreateInstructor={handleCreateInstructor}
+        onCreateAdmin={handleCreateAdmin}
+        onGoToStudentRegistration={handleGoToStudentRegistration}
       />
 
       {/* Printable Document Modal (Admission Pass / Official Tuition Receipt / FRSC Clearance) */}

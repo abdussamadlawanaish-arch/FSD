@@ -1,6 +1,7 @@
 export type CoursePackageId = 'full_beginner' | 'certificate_only';
 export type PaymentPlanId = 'deposit_75' | 'full_100';
 export type UserRole = 'student' | 'instructor' | 'admin';
+export type AuthMode = 'signin' | 'signup';
 export type PrintableDocType = 'admission_pass' | 'tuition_receipt' | 'frsc_clearance';
 
 export interface PracticalScores {
@@ -55,11 +56,40 @@ export interface StudentRecord {
   trainingCompletedAt?: string;
 }
 
+export interface InstructorAccount {
+  id: string;
+  staffId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  specialty: string;
+  password: string;
+  createdAt: string;
+}
+
+export interface AdminAccount {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  createdAt: string;
+}
+
 export interface AuthSession {
   role: UserRole;
   studentId?: string;
+  staffId?: string;
+  email?: string;
+  specialty?: string;
+  phone?: string;
   displayName: string;
 }
+
+export const STAFF_ACCESS_CODES = {
+  instructor: 'FUSAHA-INST',
+  admin: 'FUSAHA-ADMIN',
+} as const;
 
 export const DEFAULT_LOGO_PATH = '/assets/aistudio/Fusaha_Driving_School_Emblem_b62ab66b.png';
 
@@ -147,7 +177,12 @@ export function getClearanceCountdownDays(registeredAt: string): number {
 }
 
 export function isFullyPaid(student: StudentRecord): boolean {
-  return student.amountPaid >= student.totalFee && (student.paymentPlan === 'full_100' ? student.initialDepositVerified : student.finalBalanceVerified);
+  return (
+    student.amountPaid >= student.totalFee &&
+    (student.paymentPlan === 'full_100'
+      ? student.initialDepositVerified
+      : student.finalBalanceVerified)
+  );
 }
 
 export function isFrscEligible(student: StudentRecord): boolean {

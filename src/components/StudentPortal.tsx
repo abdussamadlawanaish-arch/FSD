@@ -104,7 +104,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
           >
             <LogOut className="h-4 w-4" />
-            <span>Logout</span>
+            <span>Sign Out</span>
           </button>
         </div>
       </div>

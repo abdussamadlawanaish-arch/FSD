@@ -9,11 +9,16 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  Shield,
+  UserCheck,
   AlertCircle,
 } from 'lucide-react';
 import {
+  AdminAccount,
+  AuthSession,
   COURSE_PACKAGES,
   DEFAULT_LOGO_PATH,
+  InstructorAccount,
   PrintableDocType,
   SCHOOL_INFO,
   StudentRecord,
@@ -26,7 +31,10 @@ import { BrandLogo } from './BrandLogo';
 type AdminFilter = 'all' | 'pending_initial' | 'deposit_75' | 'fully_paid' | 'frsc_ready';
 
 interface AdminDashboardProps {
+  session: AuthSession;
   students: StudentRecord[];
+  instructors: InstructorAccount[];
+  admins: AdminAccount[];
   logoUrl: string;
   onUpdateLogo: (newLogoDataUrl: string | null) => void;
   onUpdateStudent: (updated: StudentRecord) => void;
@@ -35,7 +43,10 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  session,
   students,
+  instructors,
+  admins,
   logoUrl,
   onUpdateLogo,
   onUpdateStudent,
@@ -137,19 +148,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-10 space-y-6">
-      {/* Admin Header */}
+      {/* Admin Header with Logged-In Admin Profile */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#0A2E7A]/20 bg-white/95 p-6 shadow-xs">
         <div>
           <div className="text-xs font-bold uppercase tracking-wider text-[#0A2E7A]">
             Admin Dashboard · {SCHOOL_INFO.name}
           </div>
           <h1 className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-slate-900">
-            School Branding, GTBank Verification &amp; FRSC Clearance
+            Welcome, {session.displayName}
           </h1>
-          <p className="mt-1 text-xs text-slate-600">
-            Verify student bank transfers, clear 25% balances, print official receipts, and issue
-            FRSC Certificate Clearances.
-          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+            <span>Role: <strong className="text-[#0A2E7A]">School Administrator</strong></span>
+            {session.email && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono-tabular">{session.email}</span>
+              </>
+            )}
+            {session.phone && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono-tabular">{session.phone}</span>
+              </>
+            )}
+          </div>
         </div>
         <button
           type="button"
@@ -157,7 +179,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer self-start sm:self-center whitespace-nowrap"
         >
           <LogOut className="h-4 w-4" />
-          <span>Logout</span>
+          <span>Sign Out</span>
         </button>
       </div>
 
@@ -449,6 +471,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Staff & Account Directory (Registered Admin & Instructor Accounts) */}
+      <div className="rounded-2xl border border-slate-200 bg-white/95 p-5 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-[#0A2E7A]">
+              Staff &amp; Account Directory
+            </div>
+            <h2 className="mt-0.5 font-display text-lg font-extrabold text-slate-900">
+              Registered Administrator &amp; Instructor Accounts ({admins.length + instructors.length})
+            </h2>
+          </div>
+          <div className="text-xs text-slate-500">
+            Persisted in <span className="font-mono-tabular">localStorage</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Instructor Accounts */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#0A2E7A]">
+                <UserCheck className="h-4 w-4" />
+                <span>Registered Instructors ({instructors.length})</span>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-200">
+              {instructors.map((inst) => (
+                <div key={inst.id} className="px-4 py-3 text-xs flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{inst.fullName}</div>
+                    <div className="mt-0.5 font-mono-tabular text-slate-600">
+                      ID: {inst.staffId} · {inst.email}
+                    </div>
+                    <div className="mt-0.5 text-slate-500">
+                      Specialty: {inst.specialty} · Tel: <span className="font-mono-tabular">{inst.phone}</span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-mono-tabular text-slate-400 shrink-0">
+                    {new Date(inst.createdAt).toLocaleDateString('en-NG')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Admin Accounts */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#0A2E7A]">
+                <Shield className="h-4 w-4" />
+                <span>Registered Administrators ({admins.length})</span>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-200">
+              {admins.map((adm) => (
+                <div key={adm.id} className="px-4 py-3 text-xs flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">{adm.fullName}</div>
+                    <div className="mt-0.5 font-mono-tabular text-slate-600">{adm.email}</div>
+                    <div className="mt-0.5 text-slate-500">
+                      Tel: <span className="font-mono-tabular">{adm.phone}</span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] font-mono-tabular text-slate-400 shrink-0">
+                    {new Date(adm.createdAt).toLocaleDateString('en-NG')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
