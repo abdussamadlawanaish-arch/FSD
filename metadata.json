@@ -1,0 +1,6 @@
+{
+  "name": "FUSAHA DRIVING SCHOOL",
+  "description": "Official online registration, tuition portal, and FRSC certificate clearance system for FUSAHA DRIVING SCHOOL, Dutse, Jigawa State.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
