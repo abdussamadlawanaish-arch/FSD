@@ -10,29 +10,26 @@ import {
   ArrowRight,
   CheckCircle2,
 } from 'lucide-react';
-import {
-  AdminAccount,
-  AuthMode,
-  AuthSession,
-  InstructorAccount,
-  STAFF_ACCESS_CODES,
-  StudentRecord,
-  UserRole,
-} from '../types';
+import { AuthMode, STAFF_ACCESS_CODES, UserRole } from '../types';
 import { BrandLogo } from './BrandLogo';
 
 interface LoginModalProps {
   isOpen: boolean;
   initialMode?: AuthMode;
   initialRole?: UserRole;
-  students: StudentRecord[];
-  instructors: InstructorAccount[];
-  admins: AdminAccount[];
   logoUrl: string;
   onClose: () => void;
-  onLoginSuccess: (session: AuthSession) => void;
-  onCreateInstructor: (account: Omit<InstructorAccount, 'id' | 'createdAt'>) => void;
-  onCreateAdmin: (account: Omit<AdminAccount, 'id' | 'createdAt'>) => void;
+  onSignIn: (params: { role: UserRole; identifier: string; password: string }) => Promise<void>;
+  onCreateStaff: (params: {
+    role: 'instructor' | 'admin';
+    fullName: string;
+    email: string;
+    phone: string;
+    accessCode: string;
+    password: string;
+    staffId?: string;
+    specialty?: string;
+  }) => Promise<void>;
   onGoToStudentRegistration: () => void;
 }
 
@@ -40,14 +37,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   initialMode = 'signin',
   initialRole = 'student',
-  students,
-  instructors,
-  admins,
   logoUrl,
   onClose,
-  onLoginSuccess,
-  onCreateInstructor,
-  onCreateAdmin,
+  onSignIn,
+  onCreateStaff,
   onGoToStudentRegistration,
 }) => {
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
@@ -68,6 +61,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [signupPassword, setSignupPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -76,6 +70,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setRoleTab(initialRole);
       setError('');
       setQuickFillNotice('');
+      setSubmitting(false);
     }
   }, [isOpen, initialMode, initialRole]);
 
@@ -104,103 +99,38 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setError('');
 
     if (role === 'student') {
-      const demoStudent = students[0];
-      if (demoStudent) {
-        setIdentifier(demoStudent.nin);
-        setPassword(demoStudent.password);
-        setQuickFillNotice(
-          `Filled demo Student credentials (${demoStudent.fullName}). Click Sign In below.`
-        );
-      }
+      setIdentifier('23456789012');
+      setPassword('student123');
+      setQuickFillNotice('Filled demo Student credentials (Ibrahim Musa Dutse). Click Sign In.');
     } else if (role === 'instructor') {
-      const demoInst = instructors[0];
-      if (demoInst) {
-        setIdentifier(demoInst.email);
-        setPassword(demoInst.password);
-        setQuickFillNotice(
-          `Filled demo Instructor credentials (${demoInst.fullName}). Click Sign In below.`
-        );
-      }
+      setIdentifier('instructor@fusaha.com');
+      setPassword('inst123');
+      setQuickFillNotice('Filled demo Instructor credentials (Lawal Kudai). Click Sign In.');
     } else {
-      const demoAdmin = admins[0];
-      if (demoAdmin) {
-        setIdentifier(demoAdmin.email);
-        setPassword(demoAdmin.password);
-        setQuickFillNotice(
-          `Filled demo Admin credentials (${demoAdmin.fullName}). Click Sign In below.`
-        );
-      }
+      setIdentifier('admin@fusaha.com');
+      setPassword('admin123');
+      setQuickFillNotice('Filled demo Admin credentials (Lawal Shuaibu). Click Sign In.');
     }
   };
 
-  const handleSignInSubmit = (e: React.FormEvent) => {
+  const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     resetMessages();
-    const idTrimmed = identifier.trim();
-    const passTrimmed = password.trim();
-
-    if (roleTab === 'admin') {
-      const matchedAdmin = admins.find(
-        (a) => a.email.toLowerCase() === idTrimmed.toLowerCase() && a.password === passTrimmed
-      );
-      if (!matchedAdmin) {
-        setError(
-          'Invalid Admin email or password. Use Quick Fill Demo Login or create an Admin account.'
-        );
-        return;
-      }
-      onLoginSuccess({
-        role: 'admin',
-        displayName: matchedAdmin.fullName,
-        email: matchedAdmin.email,
-        phone: matchedAdmin.phone,
+    setSubmitting(true);
+    try {
+      await onSignIn({
+        role: roleTab,
+        identifier: identifier.trim(),
+        password: password.trim(),
       });
-      return;
+    } catch (err) {
+      setError((err as Error).message || 'Sign in failed. Please check your credentials.');
+    } finally {
+      setSubmitting(false);
     }
-
-    if (roleTab === 'instructor') {
-      const matchedInst = instructors.find(
-        (i) => i.email.toLowerCase() === idTrimmed.toLowerCase() && i.password === passTrimmed
-      );
-      if (!matchedInst) {
-        setError(
-          'Invalid Instructor email or password. Use Quick Fill Demo Login or create an Instructor account.'
-        );
-        return;
-      }
-      onLoginSuccess({
-        role: 'instructor',
-        displayName: matchedInst.fullName,
-        staffId: matchedInst.staffId,
-        email: matchedInst.email,
-        specialty: matchedInst.specialty,
-        phone: matchedInst.phone,
-      });
-      return;
-    }
-
-    // Student login by NIN or Student ID + Password
-    const matchedStudent = students.find(
-      (s) =>
-        (s.nin.trim() === idTrimmed || s.id.toLowerCase() === idTrimmed.toLowerCase()) &&
-        s.password === passTrimmed
-    );
-
-    if (!matchedStudent) {
-      setError(
-        'No matching student account found. Check your NIN Number (or Student ID) and password.'
-      );
-      return;
-    }
-
-    onLoginSuccess({
-      role: 'student',
-      studentId: matchedStudent.id,
-      displayName: matchedStudent.fullName,
-    });
   };
 
-  const handleCreateAccountSubmit = (e: React.FormEvent) => {
+  const handleCreateAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     resetMessages();
 
@@ -214,62 +144,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    if (roleTab !== 'instructor' && roleTab !== 'admin') return;
 
-    if (roleTab === 'instructor') {
-      if (accessCode.trim().toUpperCase() !== STAFF_ACCESS_CODES.instructor) {
-        setError(
-          `Invalid Staff Access Code. Enter "${STAFF_ACCESS_CODES.instructor}" for Instructor registration.`
-        );
-        return;
-      }
-
-      if (instructors.some((i) => i.email.toLowerCase() === cleanEmail)) {
-        setError('An Instructor account with this email address already exists. Please Sign In.');
-        return;
-      }
-
-      if (instructors.some((i) => i.staffId.toLowerCase() === staffId.trim().toLowerCase())) {
-        setError('This Staff / Instructor ID is already registered.');
-        return;
-      }
-
-      onCreateInstructor({
+    setSubmitting(true);
+    try {
+      await onCreateStaff({
+        role: roleTab,
         fullName: fullName.trim(),
-        staffId: staffId.trim().toUpperCase(),
-        email: cleanEmail,
+        email: email.trim().toLowerCase(),
         phone: phone.trim(),
-        specialty: specialty.trim(),
+        accessCode: accessCode.trim().toUpperCase(),
         password: signupPassword.trim(),
+        staffId: roleTab === 'instructor' ? staffId.trim().toUpperCase() : undefined,
+        specialty: roleTab === 'instructor' ? specialty.trim() : undefined,
       });
-      return;
-    }
-
-    if (roleTab === 'admin') {
-      if (accessCode.trim().toUpperCase() !== STAFF_ACCESS_CODES.admin) {
-        setError(
-          `Invalid Admin Authorization Code. Enter "${STAFF_ACCESS_CODES.admin}" for Admin registration.`
-        );
-        return;
-      }
-
-      if (admins.some((a) => a.email.toLowerCase() === cleanEmail)) {
-        setError('An Admin account with this email address already exists. Please Sign In.');
-        return;
-      }
-
-      onCreateAdmin({
-        fullName: fullName.trim(),
-        email: cleanEmail,
-        phone: phone.trim(),
-        password: signupPassword.trim(),
-      });
+    } catch (err) {
+      setError((err as Error).message || 'Could not create account.');
+    } finally {
+      setSubmitting(false);
     }
   };
-
-  const demoStudent = students[0];
-  const demoInstructor = instructors[0];
-  const demoAdmin = admins[0];
 
   return (
     <div
@@ -297,7 +191,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Sign In / Create Account Switcher */}
             <div className="flex items-center rounded-lg bg-white/15 p-0.5 text-xs font-semibold">
               <button
                 type="button"
@@ -337,7 +230,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-12">
           {/* Left: Auth Form */}
           <div className="p-6 md:col-span-7 border-b md:border-b-0 md:border-r border-slate-200">
-            {/* Role Selector Tabs */}
             <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
               <button
                 type="button"
@@ -430,16 +322,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
                 <button
                   type="submit"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0A2E7A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#082361] transition-colors cursor-pointer"
+                  disabled={submitting}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0A2E7A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#082361] disabled:opacity-60 transition-colors cursor-pointer"
                 >
                   <Lock className="h-4 w-4 text-[#F5B700]" />
                   <span>
-                    Sign In to{' '}
-                    {roleTab === 'student'
-                      ? 'Student Portal'
-                      : roleTab === 'instructor'
-                      ? 'Instructor Portal'
-                      : 'Admin Dashboard'}
+                    {submitting
+                      ? 'Signing In...'
+                      : `Sign In to ${
+                          roleTab === 'student'
+                            ? 'Student Portal'
+                            : roleTab === 'instructor'
+                            ? 'Instructor Portal'
+                            : 'Admin Dashboard'
+                        }`}
                   </span>
                 </button>
 
@@ -566,7 +462,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       value={accessCode}
                       onChange={(e) => setAccessCode(e.target.value)}
                       placeholder={
-                        roleTab === 'instructor' ? 'Enter Staff Access Code' : 'Enter Admin Auth Code'
+                        roleTab === 'instructor'
+                          ? 'Enter Staff Access Code'
+                          : 'Enter Admin Auth Code'
                       }
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono-tabular text-xs text-slate-900 focus:border-[#0A2E7A] focus:outline-none"
                     />
@@ -619,18 +517,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
                 <button
                   type="submit"
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0A2E7A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#082361] transition-colors cursor-pointer"
+                  disabled={submitting}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0A2E7A] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#082361] disabled:opacity-60 transition-colors cursor-pointer"
                 >
                   <UserPlus className="h-4 w-4 text-[#F5B700]" />
                   <span>
-                    Create {roleTab === 'instructor' ? 'Instructor' : 'Admin'} Account &amp; Sign In
+                    {submitting
+                      ? 'Creating Account...'
+                      : `Create ${roleTab === 'instructor' ? 'Instructor' : 'Admin'} Account & Sign In`}
                   </span>
                 </button>
               </form>
             )}
           </div>
 
-          {/* Right: Quick Fill Demo Login Panel (1 Pre-Loaded Demo Account per Role) */}
+          {/* Right: Quick Fill Demo Login Panel */}
           <div className="bg-slate-50 p-6 md:col-span-5 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#0A2E7A]">
@@ -643,83 +544,72 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </p>
 
               <div className="mt-4 space-y-3">
-                {/* 1. Student Demo Account */}
-                {demoStudent && (
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFillDemo('student')}
-                    className="w-full text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2E7A] hover:bg-[#0A2E7A]/[0.02] transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#0A2E7A]">
-                        Quick Fill Demo: Student
-                      </span>
-                      <span className="text-[11px] font-semibold text-slate-500 group-hover:text-[#0A2E7A]">
-                        Fill Form →
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs font-semibold text-slate-900">
-                      {demoStudent.fullName}
-                    </div>
-                    <div className="mt-0.5 font-mono-tabular text-[11px] text-slate-600">
-                      NIN: {demoStudent.nin} · Pass: {demoStudent.password}
-                    </div>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => handleQuickFillDemo('student')}
+                  className="w-full text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2E7A] hover:bg-[#0A2E7A]/[0.02] transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#0A2E7A]">
+                      Quick Fill Demo: Student
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500 group-hover:text-[#0A2E7A]">
+                      Fill Form →
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-900">
+                    Ibrahim Musa Dutse
+                  </div>
+                  <div className="mt-0.5 font-mono-tabular text-[11px] text-slate-600">
+                    NIN: 23456789012 · Pass: student123
+                  </div>
+                </button>
 
-                {/* 2. Instructor Demo Account */}
-                {demoInstructor && (
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFillDemo('instructor')}
-                    className="w-full text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2E7A] hover:bg-[#0A2E7A]/[0.02] transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#0A2E7A]">
-                        Quick Fill Demo: Instructor
-                      </span>
-                      <span className="text-[11px] font-semibold text-slate-500 group-hover:text-[#0A2E7A]">
-                        Fill Form →
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs font-semibold text-slate-900">
-                      {demoInstructor.fullName} ({demoInstructor.staffId})
-                    </div>
-                    <div className="mt-0.5 font-mono-tabular text-[11px] text-slate-600">
-                      {demoInstructor.email} · Pass: {demoInstructor.password}
-                    </div>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => handleQuickFillDemo('instructor')}
+                  className="w-full text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2E7A] hover:bg-[#0A2E7A]/[0.02] transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#0A2E7A]">
+                      Quick Fill Demo: Instructor
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500 group-hover:text-[#0A2E7A]">
+                      Fill Form →
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-900">
+                    Lawal Kudai (INST-FDS-001)
+                  </div>
+                  <div className="mt-0.5 font-mono-tabular text-[11px] text-slate-600">
+                    instructor@fusaha.com · Pass: inst123
+                  </div>
+                </button>
 
-                {/* 3. Admin Demo Account */}
-                {demoAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => handleQuickFillDemo('admin')}
-                    className="w-full text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2E7A] hover:bg-[#0A2E7A]/[0.02] transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#0A2E7A]">
-                        Quick Fill Demo: Admin
-                      </span>
-                      <span className="text-[11px] font-semibold text-slate-500 group-hover:text-[#0A2E7A]">
-                        Fill Form →
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs font-semibold text-slate-900">
-                      {demoAdmin.fullName}
-                    </div>
-                    <div className="mt-0.5 font-mono-tabular text-[11px] text-slate-600">
-                      {demoAdmin.email} · Pass: {demoAdmin.password}
-                    </div>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => handleQuickFillDemo('admin')}
+                  className="w-full text-left rounded-xl border border-slate-200 bg-white p-3.5 hover:border-[#0A2E7A] hover:bg-[#0A2E7A]/[0.02] transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#0A2E7A]">
+                      Quick Fill Demo: Admin
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500 group-hover:text-[#0A2E7A]">
+                      Fill Form →
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-900">Lawal Shuaibu</div>
+                  <div className="mt-0.5 font-mono-tabular text-[11px] text-slate-600">
+                    admin@fusaha.com · Pass: admin123
+                  </div>
+                </button>
               </div>
             </div>
 
             <div className="mt-5 pt-4 border-t border-slate-200 text-[11px] text-slate-500 leading-relaxed">
-              All newly created Student, Instructor, and Admin accounts are saved directly to{' '}
-              <span className="font-mono-tabular">localStorage</span> and persist across sign-outs.
+              Accounts, tuition records, and logo branding sync automatically across devices via the
+              cloud backend.
             </div>
           </div>
         </div>

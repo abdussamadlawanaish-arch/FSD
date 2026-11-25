@@ -36,8 +36,8 @@ interface AdminDashboardProps {
   instructors: InstructorAccount[];
   admins: AdminAccount[];
   logoUrl: string;
-  onUpdateLogo: (newLogoDataUrl: string | null) => void;
-  onUpdateStudent: (updated: StudentRecord) => void;
+  onUpdateLogo: (newLogoDataUrl: string | null) => Promise<void>;
+  onVerifyPayment: (studentId: string, verifyAction: 'initial' | 'final_25') => Promise<void>;
   onOpenDocument: (student: StudentRecord, docType: PrintableDocType) => void;
   onLogout: () => void;
 }
@@ -49,7 +49,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   admins,
   logoUrl,
   onUpdateLogo,
-  onUpdateStudent,
+  onVerifyPayment,
   onOpenDocument,
   onLogout,
 }) => {
@@ -67,55 +67,59 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === 'string') {
-        onUpdateLogo(reader.result);
-        setStatusNotice(
-          'Official School Logo updated across all foreground headers, watermarks, passes, receipts, and FRSC clearances.'
-        );
-        setTimeout(() => setStatusNotice(''), 4500);
+        try {
+          await onUpdateLogo(reader.result);
+          setStatusNotice(
+            'Official School Logo synced across all foreground headers, watermarks, passes, receipts, and FRSC clearances.'
+          );
+          setTimeout(() => setStatusNotice(''), 4500);
+        } catch (err) {
+          setStatusNotice((err as Error).message || 'Could not update school logo.');
+        }
       }
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const handleResetLogo = () => {
-    onUpdateLogo(null);
-    setStatusNotice('Restored the official default FUSAHA DRIVING SCHOOL emblem.');
-    setTimeout(() => setStatusNotice(''), 3500);
+  const handleResetLogo = async () => {
+    try {
+      await onUpdateLogo(null);
+      setStatusNotice('Restored the official default FUSAHA DRIVING SCHOOL emblem.');
+      setTimeout(() => setStatusNotice(''), 3500);
+    } catch (err) {
+      setStatusNotice((err as Error).message || 'Could not reset school logo.');
+    }
   };
 
-  const handleVerifyInitialPayment = (student: StudentRecord) => {
-    const updated: StudentRecord = {
-      ...student,
-      initialDepositVerified: true,
-      amountPaid: student.initialAmountDue,
-      finalBalanceVerified: student.paymentPlan === 'full_100',
-      paymentVerifiedAt: new Date().toISOString(),
-    };
-    onUpdateStudent(updated);
-    setStatusNotice(
-      `Verified initial GTBank payment (${formatNaira(updated.amountPaid)}) for ${student.fullName}.`
-    );
-    setTimeout(() => setStatusNotice(''), 3500);
+  const handleVerifyInitialPayment = async (student: StudentRecord) => {
+    try {
+      await onVerifyPayment(student.id, 'initial');
+      setStatusNotice(
+        `Verified initial GTBank payment (${formatNaira(student.initialAmountDue)}) for ${
+          student.fullName
+        }.`
+      );
+      setTimeout(() => setStatusNotice(''), 3500);
+    } catch (err) {
+      setStatusNotice((err as Error).message || 'Could not verify initial payment.');
+    }
   };
 
-  const handleVerifyFinal25Balance = (student: StudentRecord) => {
-    const updated: StudentRecord = {
-      ...student,
-      initialDepositVerified: true,
-      finalBalanceVerified: true,
-      amountPaid: student.totalFee,
-      paymentVerifiedAt: new Date().toISOString(),
-    };
-    onUpdateStudent(updated);
-    setStatusNotice(
-      `Cleared final 25% balance for ${student.fullName}. Full tuition (${formatNaira(
-        student.totalFee
-      )}) is now 100% verified.`
-    );
-    setTimeout(() => setStatusNotice(''), 3500);
+  const handleVerifyFinal25Balance = async (student: StudentRecord) => {
+    try {
+      await onVerifyPayment(student.id, 'final_25');
+      setStatusNotice(
+        `Cleared final 25% balance for ${student.fullName}. Full tuition (${formatNaira(
+          student.totalFee
+        )}) is now 100% verified.`
+      );
+      setTimeout(() => setStatusNotice(''), 3500);
+    } catch (err) {
+      setStatusNotice((err as Error).message || 'Could not clear final balance.');
+    }
   };
 
   // KPIs
@@ -485,9 +489,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               Registered Administrator &amp; Instructor Accounts ({admins.length + instructors.length})
             </h2>
           </div>
-          <div className="text-xs text-slate-500">
-            Persisted in <span className="font-mono-tabular">localStorage</span>
-          </div>
+          <div className="text-xs text-slate-500">Synced across devices</div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

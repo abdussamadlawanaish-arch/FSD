@@ -22,22 +22,20 @@ import {
   NIGERIAN_STATES,
   PaymentPlanId,
   SCHOOL_INFO,
-  StudentRecord,
   formatNaira,
 } from '../types';
+import { StudentRegistrationPayload } from '../api';
 import { BrandLogo } from './BrandLogo';
 
 interface LandingAndRegistrationProps {
   logoUrl: string;
-  existingNins: string[];
   onOpenLogin: () => void;
   onOpenCreateAccount: () => void;
-  onRegisterStudent: (newStudentData: Omit<StudentRecord, 'id' | 'receiptNumber' | 'clearanceNumber' | 'registeredAt' | 'amountPaid' | 'initialDepositVerified' | 'finalBalanceVerified' | 'attendanceSessions' | 'totalRequiredSessions' | 'theoryScore' | 'practicalScores' | 'instructorFeedback' | 'oneMonthTrainingCompleted'>) => void;
+  onRegisterStudent: (payload: StudentRegistrationPayload) => Promise<void>;
 }
 
 export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
   logoUrl,
-  existingNins,
   onOpenLogin,
   onOpenCreateAccount,
   onRegisterStudent,
@@ -46,6 +44,7 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
   const [selectedPlan, setSelectedPlan] = useState<PaymentPlanId>('deposit_75');
   const [copiedAcct, setCopiedAcct] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Registration Form State
   const [fullName, setFullName] = useState('');
@@ -92,20 +91,13 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
       : activePackage.fee;
   const postOneMonthBalance = activePackage.fee - initialAmountDue;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
     const cleanNin = nin.replace(/\s+/g, '');
     if (!/^\d{11}$/.test(cleanNin)) {
       setFormError('Please enter a valid 11-digit National Identification Number (NIN).');
-      return;
-    }
-
-    if (existingNins.includes(cleanNin)) {
-      setFormError(
-        'An account with this NIN Number already exists. Please use Portal Sign In to access your account.'
-      );
       return;
     }
 
@@ -119,25 +111,30 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
       return;
     }
 
-    onRegisterStudent({
-      packageId: selectedPackage,
-      paymentPlan: effectivePlan,
-      totalFee: activePackage.fee,
-      initialAmountDue,
-      fullName: fullName.trim(),
-      dateOfBirth,
-      homeAddress: homeAddress.trim(),
-      bloodGroup,
-      nin: cleanNin,
-      mothersMaidenName: mothersMaidenName.trim(),
-      nationality: nationality.trim(),
-      stateOfOrigin,
-      localGovernment: localGovernment.trim(),
-      licenseClass,
-      nextOfKin: nextOfKin.trim(),
-      nextOfKinPhone: nextOfKinPhone.trim(),
-      password: password.trim(),
-    });
+    setSubmitting(true);
+    try {
+      await onRegisterStudent({
+        packageId: selectedPackage,
+        paymentPlan: effectivePlan,
+        fullName: fullName.trim(),
+        dateOfBirth,
+        homeAddress: homeAddress.trim(),
+        bloodGroup,
+        nin: cleanNin,
+        mothersMaidenName: mothersMaidenName.trim(),
+        nationality: nationality.trim(),
+        stateOfOrigin,
+        localGovernment: localGovernment.trim(),
+        licenseClass,
+        nextOfKin: nextOfKin.trim(),
+        nextOfKinPhone: nextOfKinPhone.trim(),
+        password: password.trim(),
+      });
+    } catch (err) {
+      setFormError((err as Error).message || 'Registration could not be completed.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -709,10 +706,13 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
 
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A2E7A] px-6 py-3.5 text-sm font-bold text-white hover:bg-[#082361] transition-colors cursor-pointer whitespace-nowrap"
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A2E7A] px-6 py-3.5 text-sm font-bold text-white hover:bg-[#082361] disabled:opacity-60 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <ShieldCheck className="h-4 w-4 text-[#F5B700]" />
-                <span>Submit &amp; Generate Admission Pass</span>
+                <span>
+                  {submitting ? 'Submitting Registration...' : 'Submit & Generate Admission Pass'}
+                </span>
               </button>
             </div>
           </form>

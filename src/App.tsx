@@ -1,27 +1,31 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Lock, LogOut, Menu, UserPlus, X } from 'lucide-react';
 import {
   AdminAccount,
   AuthMode,
   AuthSession,
+  DEFAULT_LOGO_PATH,
   InstructorAccount,
+  PracticalScores,
   PrintableDocType,
   SCHOOL_INFO,
   StudentRecord,
+  UserRole,
 } from './types';
+import { supabase } from './supabaseClient';
 import {
-  generateNextStudentId,
-  loadAdmins,
-  loadInstructors,
-  loadLogoUrl,
-  loadSession,
-  loadStudents,
-  saveAdmins,
-  saveInstructors,
-  saveLogoUrl,
-  saveSession,
-  saveStudents,
-} from './storage';
+  StaffRegistrationPayload,
+  StudentRegistrationPayload,
+  fetchSchoolLogo,
+  fetchStaffDirectory,
+  fetchStudents,
+  loginWithCredentials,
+  registerStaffAccount,
+  registerStudentAccount,
+  updateSchoolLogoInSupabase,
+  updateStudentAssessment,
+  verifyStudentPayment,
+} from './api';
 import { BrandLogo, GlobalPageWatermark } from './components/BrandLogo';
 import { LandingAndRegistration } from './components/LandingAndRegistration';
 import { LoginModal } from './components/LoginModal';
@@ -31,11 +35,13 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { PrintableDocumentModal } from './components/PrintableDocuments';
 
 export default function App() {
-  const [students, setStudents] = useState<StudentRecord[]>(() => loadStudents());
-  const [instructors, setInstructors] = useState<InstructorAccount[]>(() => loadInstructors());
-  const [admins, setAdmins] = useState<AdminAccount[]>(() => loadAdmins());
-  const [logoUrl, setLogoUrl] = useState<string>(() => loadLogoUrl());
-  const [session, setSession] = useState<AuthSession | null>(() => loadSession());
+  const [logoUrl, setLogoUrl] = useState<string>(DEFAULT_LOGO_PATH);
+  const [session, setSession] = useState<AuthSession | null>(null);
+
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [instructors, setInstructors] = useState<InstructorAccount[]>([]);
+  const [admins, setAdmins] = useState<AdminAccount[]>([]);
+
   const [authModal, setAuthModal] = useState<{ isOpen: boolean; mode: AuthMode }>({
     isOpen: false,
     mode: 'signin',
@@ -46,75 +52,161 @@ export default function App() {
     docType: PrintableDocType;
   } | null>(null);
 
-  const handleUpdateStudents = (nextStudents: StudentRecord[]) => {
-    setStudents(nextStudents);
-    saveStudents(nextStudents);
-  };
+  const syncRoleData = useCallback(async (activeSession: AuthSession) => {
+    try {
+      const nextStudents = await fetchStudents(activeSession);
+      setStudents(nextStudents);
+      setActiveDocument((prev) => {
+        if (!prev) return null;
+        const fresh = nextStudents.find((s) => s.id === prev.student.id);
+        return fresh ? { ...prev, student: fresh } : prev;
+      });
 
-  const handleUpdateStudent = (updated: StudentRecord) => {
-    const next = students.map((s) => (s.id === updated.id ? updated : s));
-    handleUpdateStudents(next);
-    if (activeDocument && activeDocument.student.id === updated.id) {
-      setActiveDocument({ ...activeDocument, student: updated });
+      if (activeSession.role === 'admin') {
+        const staff = await fetchStaffDirectory();
+        setInstructors(staff.instructors);
+        setAdmins(staff.admins);
+      }
+    } catch {
+      // Retain existing state if transient sync fails
     }
-  };
+  }, []);
 
-  const handleUpdateLogo = (dataUrl: string | null) => {
-    const resolved = saveLogoUrl(dataUrl);
-    setLogoUrl(resolved);
-  };
+  // Load school logo from Supabase settings table on mount
+  useEffect(() => {
+    let active = true;
+    fetchSchoolLogo()
+      .then((nextLogo) => {
+        if (active && nextLogo) setLogoUrl(nextLogo);
+      })
+      .catch(() => {
+        // Fallback to default emblem
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const handleLoginSuccess = (nextSession: AuthSession) => {
-    setSession(nextSession);
-    saveSession(nextSession);
+  // Real-time synchronization directly via @supabase/supabase-js
+  useEffect(() => {
+    const refreshLogo = () => {
+      fetchSchoolLogo()
+        .then((nextLogo) => setLogoUrl(nextLogo))
+        .catch(() => {});
+    };
+
+    const channel = supabase
+      .channel('fusaha-live-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'settings' },
+        () => {
+          refreshLogo();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students' },
+        () => {
+          if (session) {
+            void syncRoleData(session);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff' },
+        () => {
+          if (session?.role === 'admin') {
+            void syncRoleData(session);
+          }
+        }
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(() => {
+      refreshLogo();
+      if (session) {
+        void syncRoleData(session);
+      }
+    }, 8000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      void supabase.removeChannel(channel);
+    };
+  }, [session, syncRoleData]);
+
+  const handleSignIn = async (params: {
+    role: UserRole;
+    identifier: string;
+    password: string;
+  }) => {
+    const result = await loginWithCredentials(params);
+    setSession(result.session);
     setAuthModal({ isOpen: false, mode: 'signin' });
     setMobileNavOpen(false);
+    await syncRoleData(result.session);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCreateStaff = async (payload: StaffRegistrationPayload) => {
+    const result = await registerStaffAccount(payload);
+    setSession(result.session);
+    setAuthModal({ isOpen: false, mode: 'signin' });
+    setMobileNavOpen(false);
+    await syncRoleData(result.session);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleRegisterStudent = async (payload: StudentRegistrationPayload) => {
+    const result = await registerStudentAccount(payload);
+    setSession(result.session);
+    setStudents([result.student]);
+    setActiveDocument({ student: result.student, docType: 'admission_pass' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleLogout = () => {
     setSession(null);
-    saveSession(null);
+    setStudents([]);
+    setInstructors([]);
+    setAdmins([]);
     setActiveDocument(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCreateInstructor = (accountData: Omit<InstructorAccount, 'id' | 'createdAt'>) => {
-    const newInst: InstructorAccount = {
-      ...accountData,
-      id: `INST-ACC-${String(instructors.length + 1).padStart(3, '0')}`,
-      createdAt: new Date().toISOString(),
-    };
-    const nextList = [newInst, ...instructors];
-    setInstructors(nextList);
-    saveInstructors(nextList);
-
-    handleLoginSuccess({
-      role: 'instructor',
-      displayName: newInst.fullName,
-      staffId: newInst.staffId,
-      email: newInst.email,
-      specialty: newInst.specialty,
-      phone: newInst.phone,
-    });
+  const handleUpdateAssessment = async (
+    studentId: string,
+    patch: {
+      attendanceSessions?: number;
+      theoryScore?: number;
+      practicalScores?: PracticalScores;
+      instructorFeedback?: string;
+      oneMonthTrainingCompleted?: boolean;
+    }
+  ) => {
+    const updated = await updateStudentAssessment(studentId, patch);
+    setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    setActiveDocument((prev) =>
+      prev && prev.student.id === updated.id ? { ...prev, student: updated } : prev
+    );
   };
 
-  const handleCreateAdmin = (accountData: Omit<AdminAccount, 'id' | 'createdAt'>) => {
-    const newAdmin: AdminAccount = {
-      ...accountData,
-      id: `ADM-ACC-${String(admins.length + 1).padStart(3, '0')}`,
-      createdAt: new Date().toISOString(),
-    };
-    const nextList = [newAdmin, ...admins];
-    setAdmins(nextList);
-    saveAdmins(nextList);
+  const handleVerifyPayment = async (
+    studentId: string,
+    verifyAction: 'initial' | 'final_25'
+  ) => {
+    const updated = await verifyStudentPayment(studentId, verifyAction);
+    setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    setActiveDocument((prev) =>
+      prev && prev.student.id === updated.id ? { ...prev, student: updated } : prev
+    );
+  };
 
-    handleLoginSuccess({
-      role: 'admin',
-      displayName: newAdmin.fullName,
-      email: newAdmin.email,
-      phone: newAdmin.phone,
-    });
+  const handleUpdateLogo = async (dataUrl: string | null) => {
+    const resolved = await updateSchoolLogoInSupabase(dataUrl || '');
+    setLogoUrl(resolved);
   };
 
   const handleGoToStudentRegistration = () => {
@@ -123,51 +215,6 @@ export default function App() {
       const el = document.getElementById('enroll');
       el?.scrollIntoView({ behavior: 'smooth' });
     }, 60);
-  };
-
-  const handleRegisterStudent: React.ComponentProps<
-    typeof LandingAndRegistration
-  >['onRegisterStudent'] = (formData) => {
-    const nextId = generateNextStudentId(students);
-    const suffix = nextId.split('-').pop() || '001';
-
-    const newStudent: StudentRecord = {
-      ...formData,
-      id: nextId,
-      receiptNumber: `RCT-${nextId}`,
-      clearanceNumber: `FRSC-JIG-FDS-${suffix}`,
-      registeredAt: new Date().toISOString(),
-      amountPaid: 0,
-      initialDepositVerified: false,
-      finalBalanceVerified: false,
-      attendanceSessions: 0,
-      totalRequiredSessions: 20,
-      theoryScore: 0,
-      practicalScores: {
-        steering: 0,
-        parking: 0,
-        roadSigns: 0,
-        defensiveDriving: 0,
-      },
-      instructorFeedback:
-        'Newly enrolled student. Present your Admission & Payment Pass with GTBank receipt at the Dutse campus office to begin physical training.',
-      oneMonthTrainingCompleted: false,
-    };
-
-    const nextList = [newStudent, ...students];
-    handleUpdateStudents(nextList);
-
-    const newSession: AuthSession = {
-      role: 'student',
-      studentId: newStudent.id,
-      displayName: newStudent.fullName,
-    };
-    setSession(newSession);
-    saveSession(newSession);
-
-    // Immediately show the printable Admission & Payment Pass
-    setActiveDocument({ student: newStudent, docType: 'admission_pass' });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const currentStudent =
@@ -337,7 +384,6 @@ export default function App() {
         {!session && (
           <LandingAndRegistration
             logoUrl={logoUrl}
-            existingNins={students.map((s) => s.nin)}
             onOpenLogin={() => setAuthModal({ isOpen: true, mode: 'signin' })}
             onOpenCreateAccount={() => setAuthModal({ isOpen: true, mode: 'signup' })}
             onRegisterStudent={handleRegisterStudent}
@@ -356,7 +402,7 @@ export default function App() {
           <InstructorPortal
             session={session}
             students={students}
-            onUpdateStudent={handleUpdateStudent}
+            onUpdateAssessment={handleUpdateAssessment}
             onLogout={handleLogout}
           />
         )}
@@ -369,7 +415,7 @@ export default function App() {
             admins={admins}
             logoUrl={logoUrl}
             onUpdateLogo={handleUpdateLogo}
-            onUpdateStudent={handleUpdateStudent}
+            onVerifyPayment={handleVerifyPayment}
             onOpenDocument={(student, docType) => setActiveDocument({ student, docType })}
             onLogout={handleLogout}
           />
@@ -403,14 +449,10 @@ export default function App() {
       <LoginModal
         isOpen={authModal.isOpen}
         initialMode={authModal.mode}
-        students={students}
-        instructors={instructors}
-        admins={admins}
         logoUrl={logoUrl}
         onClose={() => setAuthModal({ isOpen: false, mode: 'signin' })}
-        onLoginSuccess={handleLoginSuccess}
-        onCreateInstructor={handleCreateInstructor}
-        onCreateAdmin={handleCreateAdmin}
+        onSignIn={handleSignIn}
+        onCreateStaff={handleCreateStaff}
         onGoToStudentRegistration={handleGoToStudentRegistration}
       />
 

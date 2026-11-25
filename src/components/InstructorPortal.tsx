@@ -8,23 +8,33 @@ import {
   Search,
   UserCheck,
 } from 'lucide-react';
-import { AuthSession, COURSE_PACKAGES, SCHOOL_INFO, StudentRecord } from '../types';
+import { AuthSession, COURSE_PACKAGES, PracticalScores, SCHOOL_INFO, StudentRecord } from '../types';
 
 interface InstructorPortalProps {
   session: AuthSession;
   students: StudentRecord[];
-  onUpdateStudent: (updated: StudentRecord) => void;
+  onUpdateAssessment: (
+    studentId: string,
+    patch: {
+      attendanceSessions?: number;
+      theoryScore?: number;
+      practicalScores?: PracticalScores;
+      instructorFeedback?: string;
+      oneMonthTrainingCompleted?: boolean;
+    }
+  ) => Promise<void>;
   onLogout: () => void;
 }
 
 export const InstructorPortal: React.FC<InstructorPortalProps> = ({
   session,
   students,
-  onUpdateStudent,
+  onUpdateAssessment,
   onLogout,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string>(students[0]?.id || '');
+  const [saving, setSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState('');
 
   const filteredStudents = students.filter((s) => {
@@ -48,43 +58,57 @@ export const InstructorPortal: React.FC<InstructorPortalProps> = ({
     setSavedNotice('');
   };
 
-  // Keep draft synced if activeStudent changes externally or on first mount
   React.useEffect(() => {
     if (activeStudent && (!draft || draft.id !== activeStudent.id)) {
       setDraft({ ...activeStudent, practicalScores: { ...activeStudent.practicalScores } });
     }
   }, [activeStudent, draft]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft) return;
-    const updated: StudentRecord = {
-      ...draft,
-      trainingCompletedAt: draft.oneMonthTrainingCompleted
-        ? draft.trainingCompletedAt || new Date().toISOString()
-        : undefined,
-    };
-    onUpdateStudent(updated);
-    setSavedNotice(`Saved attendance & assessment for ${updated.fullName}.`);
-    setTimeout(() => setSavedNotice(''), 3500);
+    setSaving(true);
+    try {
+      await onUpdateAssessment(draft.id, {
+        attendanceSessions: draft.attendanceSessions,
+        theoryScore: draft.theoryScore,
+        practicalScores: draft.practicalScores,
+        instructorFeedback: draft.instructorFeedback,
+        oneMonthTrainingCompleted: draft.oneMonthTrainingCompleted,
+      });
+      setSavedNotice(`Saved attendance & assessment for ${draft.fullName}.`);
+      setTimeout(() => setSavedNotice(''), 3500);
+    } catch (err) {
+      setSavedNotice((err as Error).message || 'Failed to save assessment.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const toggleOneMonthComplete = () => {
+  const toggleOneMonthComplete = async () => {
     if (!draft) return;
     const nextVal = !draft.oneMonthTrainingCompleted;
-    const updated: StudentRecord = {
-      ...draft,
-      oneMonthTrainingCompleted: nextVal,
-      trainingCompletedAt: nextVal ? new Date().toISOString() : undefined,
-    };
-    setDraft(updated);
-    onUpdateStudent(updated);
-    setSavedNotice(
-      nextVal
-        ? `Marked 1-Month Training Completed for ${updated.fullName}.`
-        : `Reverted 1-Month Training status for ${updated.fullName}.`
-    );
-    setTimeout(() => setSavedNotice(''), 3500);
+    setSaving(true);
+    try {
+      await onUpdateAssessment(draft.id, {
+        oneMonthTrainingCompleted: nextVal,
+      });
+      setDraft({
+        ...draft,
+        oneMonthTrainingCompleted: nextVal,
+        trainingCompletedAt: nextVal ? new Date().toISOString() : undefined,
+      });
+      setSavedNotice(
+        nextVal
+          ? `Marked 1-Month Training Completed for ${draft.fullName}.`
+          : `Reverted 1-Month Training status for ${draft.fullName}.`
+      );
+      setTimeout(() => setSavedNotice(''), 3500);
+    } catch (err) {
+      setSavedNotice((err as Error).message || 'Could not update completion status.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -381,10 +405,11 @@ export const InstructorPortal: React.FC<InstructorPortalProps> = ({
               <div className="flex justify-end">
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#0A2E7A] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#082361] transition-colors cursor-pointer"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#0A2E7A] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#082361] disabled:opacity-60 transition-colors cursor-pointer"
                 >
                   <Save className="h-4 w-4 text-[#F5B700]" />
-                  <span>Save Attendance &amp; Scorecard</span>
+                  <span>{saving ? 'Saving...' : 'Save Attendance & Scorecard'}</span>
                 </button>
               </div>
             </form>

@@ -43,9 +43,6 @@ export interface StudentRecord {
   nextOfKin: string;
   nextOfKinPhone: string;
 
-  // Portal Auth
-  password: string;
-
   // Instructor Training & Assessment
   attendanceSessions: number;
   totalRequiredSessions: number;
@@ -63,7 +60,6 @@ export interface InstructorAccount {
   email: string;
   phone: string;
   specialty: string;
-  password: string;
   createdAt: string;
 }
 
@@ -72,7 +68,6 @@ export interface AdminAccount {
   fullName: string;
   email: string;
   phone: string;
-  password: string;
   createdAt: string;
 }
 
@@ -84,6 +79,13 @@ export interface AuthSession {
   specialty?: string;
   phone?: string;
   displayName: string;
+}
+
+export interface AppConfig {
+  supabaseConfigured: boolean;
+  supabaseUrl: string;
+  supabasePublishableKey: string;
+  schoolLogo: string;
 }
 
 export const STAFF_ACCESS_CODES = {
