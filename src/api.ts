@@ -56,9 +56,6 @@ interface StoredStaffAccount {
   createdAt: string;
 }
 
-const daysAgoIso = (days: number): string =>
-  new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
@@ -142,135 +139,13 @@ function sanitizeStaff(staff: StoredStaffAccount): InstructorAccount | AdminAcco
   return rest;
 }
 
-async function createSeedStudents(): Promise<StoredStudentRecord[]> {
-  const demoPassHash = await hashPassword('student123');
-  return [
-    {
-      id: 'FDS-2026-001',
-      receiptNumber: 'RCT-FDS-2026-001',
-      clearanceNumber: 'FRSC-JIG-FDS-001',
-      registeredAt: daysAgoIso(18),
-      packageId: 'full_beginner',
-      paymentPlan: 'deposit_75',
-      totalFee: 65000,
-      initialAmountDue: 48750,
-      amountPaid: 48750,
-      initialDepositVerified: true,
-      finalBalanceVerified: false,
-      paymentVerifiedAt: daysAgoIso(17),
-      fullName: 'Ibrahim Musa Dutse',
-      dateOfBirth: '1999-05-14',
-      homeAddress: 'Plot 14, Takur Quarters, Dutse, Jigawa State',
-      bloodGroup: 'O+',
-      nin: '23456789012',
-      mothersMaidenName: 'Halima Garba',
-      nationality: 'Nigerian',
-      stateOfOrigin: 'Jigawa',
-      localGovernment: 'Dutse',
-      licenseClass: 'Class B',
-      nextOfKin: 'Musa Abdullahi Dutse',
-      nextOfKinPhone: '08061234567',
-      passwordHash: demoPassHash,
-      attendanceSessions: 12,
-      totalRequiredSessions: 20,
-      theoryScore: 84,
-      practicalScores: {
-        steering: 82,
-        parking: 76,
-        roadSigns: 88,
-        defensiveDriving: 80,
-      },
-      instructorFeedback:
-        'Demonstrates steady steering control and strong knowledge of highway signs. Continue practicing parallel parking ahead of the 1-month assessment.',
-      oneMonthTrainingCompleted: false,
-    },
-    {
-      id: 'FDS-2026-002',
-      receiptNumber: 'RCT-FDS-2026-002',
-      clearanceNumber: 'FRSC-JIG-FDS-002',
-      registeredAt: daysAgoIso(34),
-      packageId: 'full_beginner',
-      paymentPlan: 'full_100',
-      totalFee: 65000,
-      initialAmountDue: 65000,
-      amountPaid: 65000,
-      initialDepositVerified: true,
-      finalBalanceVerified: true,
-      paymentVerifiedAt: daysAgoIso(33),
-      fullName: 'Aisha Bello Kiyawa',
-      dateOfBirth: '2001-09-22',
-      homeAddress: 'No. 8, Shuwarin Layout, Kiyawa Road, Dutse, Jigawa State',
-      bloodGroup: 'A+',
-      nin: '34567890123',
-      mothersMaidenName: 'Zainab Umar',
-      nationality: 'Nigerian',
-      stateOfOrigin: 'Jigawa',
-      localGovernment: 'Kiyawa',
-      licenseClass: 'Class B',
-      nextOfKin: 'Bello Danjuma',
-      nextOfKinPhone: '08039876543',
-      passwordHash: demoPassHash,
-      attendanceSessions: 20,
-      totalRequiredSessions: 20,
-      theoryScore: 94,
-      practicalScores: {
-        steering: 92,
-        parking: 90,
-        roadSigns: 96,
-        defensiveDriving: 91,
-      },
-      instructorFeedback:
-        'Completed full 1-month campus training with excellent defensive driving discipline and road rule accuracy. Recommended for FRSC licensing clearance.',
-      oneMonthTrainingCompleted: true,
-      trainingCompletedAt: daysAgoIso(2),
-    },
-  ];
-}
-
-async function createSeedStaff(): Promise<StoredStaffAccount[]> {
-  const [instHash, adminHash] = await Promise.all([
-    hashPassword('inst123'),
-    hashPassword('admin123'),
-  ]);
-  return [
-    {
-      id: 'INST-ACC-001',
-      role: 'instructor',
-      staffId: 'INST-FDS-001',
-      fullName: 'Lawal Kudai',
-      email: 'instructor@fusaha.com',
-      phone: '08030435429',
-      specialty: 'Class B, Class C & Class E',
-      passwordHash: instHash,
-      createdAt: daysAgoIso(90),
-    },
-    {
-      id: 'ADM-ACC-001',
-      role: 'admin',
-      fullName: 'Lawal Shuaibu',
-      email: 'admin@fusaha.com',
-      phone: '08030435429',
-      passwordHash: adminHash,
-      createdAt: daysAgoIso(120),
-    },
-  ];
-}
-
 async function getAllRawStudents(): Promise<StoredStudentRecord[]> {
   const { data, error } = await supabase.from('students').select('id, data');
   if (error) {
     throw new Error(`Supabase students read error: ${error.message}`);
   }
   if (!data || data.length === 0) {
-    const seeds = await createSeedStudents();
-    const { error: seedError } = await supabase.from('students').upsert(
-      seeds.map((s) => ({ id: s.id, data: s })),
-      { onConflict: 'id' }
-    );
-    if (seedError) {
-      throw new Error(`Supabase students seed error: ${seedError.message}`);
-    }
-    return seeds;
+    return [];
   }
   return data.map((row) => row.data as StoredStudentRecord);
 }
@@ -281,15 +156,7 @@ async function getAllRawStaff(): Promise<StoredStaffAccount[]> {
     throw new Error(`Supabase staff read error: ${error.message}`);
   }
   if (!data || data.length === 0) {
-    const seeds = await createSeedStaff();
-    const { error: seedError } = await supabase.from('staff').upsert(
-      seeds.map((s) => ({ id: s.id, data: s })),
-      { onConflict: 'id' }
-    );
-    if (seedError) {
-      throw new Error(`Supabase staff seed error: ${seedError.message}`);
-    }
-    return seeds;
+    return [];
   }
   return data.map((row) => row.data as StoredStaffAccount);
 }
