@@ -98,7 +98,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       await onVerifyPayment(student.id, 'initial');
       setStatusNotice(
-        `Verified initial GTBank payment (${formatNaira(student.initialAmountDue)}) for ${
+        `Verified initial payment (${formatNaira(student.initialAmountDue)}) for ${
           student.fullName
         }.`
       );
@@ -136,7 +136,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       !q ||
       s.fullName.toLowerCase().includes(q) ||
       s.id.toLowerCase().includes(q) ||
-      s.nin.includes(q);
+      s.nin.includes(q) ||
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.paystackReference && s.paystackReference.toLowerCase().includes(q));
 
     if (!matchesSearch) return false;
 
@@ -261,7 +263,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="mt-1.5 font-mono-tabular text-2xl font-extrabold text-emerald-700">
             {formatNaira(totalCollected)}
           </div>
-          <div className="mt-1 text-xs text-slate-500">GTBank confirmed receipts</div>
+          <div className="mt-1 text-xs text-slate-500">Paystack &amp; verified campus receipts</div>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white/95 p-5">
@@ -376,8 +378,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5 align-top space-y-1">
-                        <div className="flex items-center gap-1.5 font-semibold">
+                      <td className="px-4 py-3.5 align-top space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5 font-semibold">
                           {fullyPaid ? (
                             <span className="inline-flex items-center gap-1 text-emerald-700">
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -391,10 +393,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ) : (
                             <span className="inline-flex items-center gap-1 text-red-700">
                               <AlertCircle className="h-3.5 w-3.5" />
-                              <span>Initial Transfer Unverified</span>
+                              <span>Payment Pending Verification</span>
                             </span>
                           )}
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                            {st.paymentMethod}
+                          </span>
                         </div>
+                        {st.paystackReference && (
+                          <div className="font-mono-tabular text-[11px] text-[#0A2E7A] break-all">
+                            Paystack Ref: <strong>{st.paystackReference}</strong>
+                            {st.paystackBalanceReference &&
+                              st.paystackBalanceReference !== st.paystackReference && (
+                                <span className="block text-emerald-700">
+                                  25% Ref: <strong>{st.paystackBalanceReference}</strong>
+                                </span>
+                              )}
+                          </div>
+                        )}
                         <div className="text-[11px] text-slate-600">
                           Training:{' '}
                           <strong

@@ -40,7 +40,7 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
 
   const pkg = COURSE_PACKAGES[student.packageId];
   const remainingBalance = Math.max(0, student.totalFee - student.amountPaid);
-  const paymentRef = getPaymentReference(student);
+  const paymentRef = student.paystackReference || getPaymentReference(student);
   const formattedRegDate = new Date(student.registeredAt).toLocaleDateString('en-NG', {
     year: 'numeric',
     month: 'long',
@@ -276,9 +276,14 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                       }`}
                     >
                       {student.initialDepositVerified
-                        ? 'Tuition Payment Verified'
-                        : 'Awaiting GTBank Verification'}
+                        ? `${student.paymentMethod} Verified`
+                        : 'Pending Payment Verification'}
                     </span>
+                    {student.paystackReference && (
+                      <span className="block font-mono-tabular text-[11px] text-slate-600 mt-0.5 break-all">
+                        Ref: {student.paystackReference}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -484,11 +489,35 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                         Verified Payment Channel
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-700" colSpan={2}>
-                        <strong>{BANK_DETAILS.shortBankName}</strong> · Account Name:{' '}
-                        <strong>{BANK_DETAILS.accountName}</strong> · Acct No:{' '}
-                        <span className="font-mono-tabular font-bold">
-                          {BANK_DETAILS.accountNumber}
-                        </span>
+                        {student.paymentMethod === 'Paystack' ? (
+                          <div>
+                            <strong>Paystack Checkout</strong>
+                            {student.paymentChannel && (
+                              <span className="capitalize"> · Channel: {student.paymentChannel}</span>
+                            )}
+                            {student.paystackReference && (
+                              <span className="block font-mono-tabular font-bold text-[#0A2E7A] mt-0.5">
+                                Transaction Ref: {student.paystackReference}
+                              </span>
+                            )}
+                            {student.paystackBalanceReference &&
+                              student.paystackBalanceReference !== student.paystackReference && (
+                                <span className="block font-mono-tabular font-bold text-emerald-700 mt-0.5">
+                                  25% Balance Ref: {student.paystackBalanceReference}
+                                </span>
+                              )}
+                          </div>
+                        ) : (
+                          <div>
+                            <strong>{student.paymentMethod}</strong> ·{' '}
+                            <strong>{BANK_DETAILS.shortBankName}</strong> ({BANK_DETAILS.accountName}{' '}
+                            ·{' '}
+                            <span className="font-mono-tabular font-bold">
+                              {BANK_DETAILS.accountNumber}
+                            </span>
+                            )
+                          </div>
+                        )}
                       </td>
                     </tr>
                     <tr className="bg-emerald-50/60">
@@ -518,8 +547,14 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
               {/* Reference & Authorization Footer */}
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs text-slate-600">
                 <div>
-                  <div className="font-semibold text-slate-800">Payment Narration Reference</div>
-                  <div className="mt-1 font-mono-tabular text-slate-700">{paymentRef}</div>
+                  <div className="font-semibold text-slate-800">
+                    {student.paystackReference
+                      ? 'Paystack Transaction Reference'
+                      : 'Payment Narration Reference'}
+                  </div>
+                  <div className="mt-1 font-mono-tabular font-bold text-slate-800 break-all">
+                    {paymentRef}
+                  </div>
                   {remainingBalance > 0 && (
                     <p className="mt-2 text-amber-800 font-medium">
                       Note: Remaining 25% balance ({formatNaira(remainingBalance)}) is due after 1

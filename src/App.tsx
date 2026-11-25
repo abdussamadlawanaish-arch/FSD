@@ -15,13 +15,11 @@ import {
 import { supabase } from './supabaseClient';
 import {
   StaffRegistrationPayload,
-  StudentRegistrationPayload,
   fetchSchoolLogo,
   fetchStaffDirectory,
   fetchStudents,
   loginWithCredentials,
   registerStaffAccount,
-  registerStudentAccount,
   updateSchoolLogoInSupabase,
   updateStudentAssessment,
   verifyStudentPayment,
@@ -159,12 +157,21 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleRegisterStudent = async (payload: StudentRegistrationPayload) => {
-    const result = await registerStudentAccount(payload);
-    setSession(result.session);
-    setStudents([result.student]);
-    setActiveDocument({ student: result.student, docType: 'admission_pass' });
+  const handleCheckoutVerified = (verifiedStudent: StudentRecord) => {
+    setSession({
+      role: 'student',
+      studentId: verifiedStudent.id,
+      email: verifiedStudent.email,
+      displayName: verifiedStudent.fullName,
+    });
+    setStudents([verifiedStudent]);
+    setActiveDocument({ student: verifiedStudent, docType: 'tuition_receipt' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleStudentPaymentCompleted = (updatedStudent: StudentRecord) => {
+    setStudents((prev) => prev.map((s) => (s.id === updatedStudent.id ? updatedStudent : s)));
+    setActiveDocument({ student: updatedStudent, docType: 'tuition_receipt' });
   };
 
   const handleLogout = () => {
@@ -386,7 +393,7 @@ export default function App() {
             logoUrl={logoUrl}
             onOpenLogin={() => setAuthModal({ isOpen: true, mode: 'signin' })}
             onOpenCreateAccount={() => setAuthModal({ isOpen: true, mode: 'signup' })}
-            onRegisterStudent={handleRegisterStudent}
+            onCheckoutVerified={handleCheckoutVerified}
           />
         )}
 
@@ -394,6 +401,7 @@ export default function App() {
           <StudentPortal
             student={currentStudent}
             onOpenDocument={(student, docType) => setActiveDocument({ student, docType })}
+            onPaymentCompleted={handleStudentPaymentCompleted}
             onLogout={handleLogout}
           />
         )}

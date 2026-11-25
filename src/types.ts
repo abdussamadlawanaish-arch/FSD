@@ -11,6 +11,9 @@ export interface PracticalScores {
   defensiveDriving: number;
 }
 
+export type PaymentStatus = 'Pending' | 'Partial' | 'Verified';
+export type PaymentMethod = 'Paystack' | 'Walk-in / Cash';
+
 export interface StudentRecord {
   id: string;
   receiptNumber: string;
@@ -21,12 +24,19 @@ export interface StudentRecord {
   totalFee: number;
   initialAmountDue: number;
   amountPaid: number;
+  balanceDue: number;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  paystackReference?: string;
+  paystackBalanceReference?: string;
+  paymentChannel?: string;
   initialDepositVerified: boolean;
   finalBalanceVerified: boolean;
   paymentVerifiedAt?: string;
 
   // Personal Details
   fullName: string;
+  email: string;
   dateOfBirth: string;
   homeAddress: string;
   bloodGroup: string;
@@ -178,9 +188,17 @@ export function getClearanceCountdownDays(registeredAt: string): number {
   return Math.max(0, 30 - elapsed);
 }
 
+export function getRemainingBalance(student: StudentRecord): number {
+  if (typeof student.balanceDue === 'number' && student.initialDepositVerified) {
+    return Math.max(0, student.balanceDue);
+  }
+  return Math.max(0, student.totalFee - student.amountPaid);
+}
+
 export function isFullyPaid(student: StudentRecord): boolean {
   return (
     student.amountPaid >= student.totalFee &&
+    (student.balanceDue === undefined || student.balanceDue === 0) &&
     (student.paymentPlan === 'full_100'
       ? student.initialDepositVerified
       : student.finalBalanceVerified)

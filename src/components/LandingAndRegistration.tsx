@@ -4,7 +4,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  ShieldCheck,
   Building2,
   Copy,
   Check,
@@ -12,6 +11,9 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
+  CreditCard,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import {
   BANK_DETAILS,
@@ -22,32 +24,42 @@ import {
   NIGERIAN_STATES,
   PaymentPlanId,
   SCHOOL_INFO,
+  StudentRecord,
   formatNaira,
 } from '../types';
-import { StudentRegistrationPayload } from '../api';
+import {
+  StudentRegistrationPayload,
+  registerStudentAccount,
+  verifyPaystackPayment,
+} from '../api';
+import { getExpectedKoboAmount, launchPaystackCheckout } from '../paystack';
 import { BrandLogo } from './BrandLogo';
 
 interface LandingAndRegistrationProps {
   logoUrl: string;
   onOpenLogin: () => void;
   onOpenCreateAccount: () => void;
-  onRegisterStudent: (payload: StudentRegistrationPayload) => Promise<void>;
+  onCheckoutVerified: (student: StudentRecord) => void;
 }
 
 export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
   logoUrl,
   onOpenLogin,
   onOpenCreateAccount,
-  onRegisterStudent,
+  onCheckoutVerified,
 }) => {
   const [selectedPackage, setSelectedPackage] = useState<CoursePackageId>('full_beginner');
   const [selectedPlan, setSelectedPlan] = useState<PaymentPlanId>('deposit_75');
   const [copiedAcct, setCopiedAcct] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [checkoutStage, setCheckoutStage] = useState<
+    'idle' | 'registering' | 'awaiting_paystack' | 'verifying'
+  >('idle');
+  const [pendingStudent, setPendingStudent] = useState<StudentRecord | null>(null);
 
   // Registration Form State
   const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [homeAddress, setHomeAddress] = useState('');
   const [bloodGroup, setBloodGroup] = useState<string>('O+');
@@ -62,6 +74,7 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [formError, setFormError] = useState('');
+  const [formNotice, setFormNotice] = useState('');
 
   const handlePackageSelect = (pkgId: CoursePackageId) => {
     setSelectedPackage(pkgId);
@@ -90,14 +103,99 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
       ? activePackage.deposit75Amount
       : activePackage.fee;
   const postOneMonthBalance = activePackage.fee - initialAmountDue;
+  const submitting = checkoutStage !== 'idle';
+
+  const startPaystackForStudent = async (studentRecord: StudentRecord) => {
+    const expectedAmountKobo = getExpectedKoboAmount({
+      packageId: studentRecord.packageId,
+      paymentPlan: studentRecord.paymentPlan,
+      isBalancePayment: false,
+    });
+
+    setCheckoutStage('awaiting_paystack');
+    setFormError('');
+    setFormNotice(
+      `Student ID ${studentRecord.id} saved. Complete your ${formatNaira(
+        studentRecord.initialAmountDue
+      )} payment in the Paystack popup window.`
+    );
+
+    try {
+      await launchPaystackCheckout({
+        studentId: studentRecord.id,
+        email: studentRecord.email,
+        amountKobo: expectedAmountKobo,
+        onSuccess: async (transaction) => {
+          setCheckoutStage('verifying');
+          setFormError('');
+          setFormNotice('Verifying Paystack transaction and issuing your official receipt...');
+          try {
+            const verifiedStudent = await verifyPaystackPayment({
+              reference: transaction.reference,
+              studentId: studentRecord.id,
+              expectedAmountKobo,
+              isBalancePayment: false,
+              fallbackChannel: transaction.channel,
+            });
+            setCheckoutStage('idle');
+            setPendingStudent(null);
+            setFormNotice('');
+            onCheckoutVerified(verifiedStudent);
+          } catch (verifyErr) {
+            setCheckoutStage('idle');
+            setFormNotice('');
+            setFormError(
+              `${
+                (verifyErr as Error).message || 'Payment verification failed.'
+              } Reference: ${transaction.reference}. Click "Retry Paystack Payment" below (no duplicate account will be created).`
+            );
+          }
+        },
+        onCancel: () => {
+          setCheckoutStage('idle');
+          setFormNotice('');
+          setFormError(
+            `Paystack checkout was closed before completion. Your Student ID (${studentRecord.id}) is saved — click "Retry Paystack Payment" below to pay without creating a duplicate account.`
+          );
+        },
+        onError: (msg) => {
+          setCheckoutStage('idle');
+          setFormNotice('');
+          setFormError(
+            `${msg} Your Student ID (${studentRecord.id}) is saved — click "Retry Paystack Payment" below to try again.`
+          );
+        },
+      });
+    } catch (launchErr) {
+      setCheckoutStage('idle');
+      setFormNotice('');
+      setFormError(
+        `${
+          (launchErr as Error).message || 'Unable to launch Paystack checkout.'
+        } Your Student ID (${studentRecord.id}) is saved — please retry payment below.`
+      );
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+    setFormNotice('');
+
+    if (pendingStudent) {
+      await startPaystackForStudent(pendingStudent);
+      return;
+    }
 
     const cleanNin = nin.replace(/\s+/g, '');
     if (!/^\d{11}$/.test(cleanNin)) {
       setFormError('Please enter a valid 11-digit National Identification Number (NIN).');
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setFormError('Please enter a valid email address for Paystack checkout and receipt delivery.');
       return;
     }
 
@@ -111,12 +209,13 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
       return;
     }
 
-    setSubmitting(true);
+    setCheckoutStage('registering');
     try {
-      await onRegisterStudent({
+      const payload: StudentRegistrationPayload = {
         packageId: selectedPackage,
         paymentPlan: effectivePlan,
         fullName: fullName.trim(),
+        email: cleanEmail,
         dateOfBirth,
         homeAddress: homeAddress.trim(),
         bloodGroup,
@@ -129,11 +228,13 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
         nextOfKin: nextOfKin.trim(),
         nextOfKinPhone: nextOfKinPhone.trim(),
         password: password.trim(),
-      });
+      };
+      const result = await registerStudentAccount(payload);
+      setPendingStudent(result.student);
+      await startPaystackForStudent(result.student);
     } catch (err) {
+      setCheckoutStage('idle');
       setFormError((err as Error).message || 'Registration could not be completed.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -248,8 +349,9 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
               Choose Your Training Package &amp; Complete Enrollment
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Select your course package and payment schedule below, then fill in your official
-              candidate details to receive an instant printable Admission &amp; Payment Pass.
+              Select your course package and payment schedule below, fill in your official candidate
+              details, and pay securely online with Paystack to receive your instant Verified Admission
+              &amp; Payment Receipt.
             </p>
           </div>
 
@@ -450,10 +552,26 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
                   <input
                     type="text"
                     required
+                    disabled={Boolean(pendingStudent)}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="e.g. Suleiman Garba Adamu"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-[#0A2E7A] focus:outline-none focus:ring-2 focus:ring-[#0A2E7A]/20"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 disabled:bg-slate-100 focus:border-[#0A2E7A] focus:outline-none focus:ring-2 focus:ring-[#0A2E7A]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Email Address (For Paystack Receipt) *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    disabled={Boolean(pendingStudent)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. candidate@example.com"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 disabled:bg-slate-100 focus:border-[#0A2E7A] focus:outline-none focus:ring-2 focus:ring-[#0A2E7A]/20"
                   />
                 </div>
 
@@ -680,27 +798,48 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
               </div>
             </div>
 
-            {formError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                {formError}
+            {pendingStudent && (
+              <div className="rounded-xl border border-[#0A2E7A]/25 bg-[#0A2E7A]/[0.04] px-4 py-3 text-xs sm:text-sm text-[#0A2E7A] flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <strong>Saved Registration ID:</strong>{' '}
+                  <span className="font-mono-tabular font-bold">{pendingStudent.id}</span> ·{' '}
+                  <span>{pendingStudent.fullName}</span> ({pendingStudent.email})
+                </div>
+                <span className="text-xs font-semibold">
+                  Amount Due: {formatNaira(pendingStudent.initialAmountDue)}
+                </span>
               </div>
             )}
 
-            {/* Summary & Submit Bar */}
+            {formNotice && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-[#0A2E7A] flex items-center gap-2">
+                {submitting && <Loader2 className="h-4 w-4 animate-spin shrink-0" />}
+                <span>{formNotice}</span>
+              </div>
+            )}
+
+            {formError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            {/* Summary & Paystack Checkout Bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-[#0A2E7A]/20 bg-[#0A2E7A]/[0.03] p-5">
               <div className="space-y-1">
                 <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Registration Summary
+                  Paystack Checkout Summary
                 </div>
                 <div className="text-sm font-bold text-slate-900">
                   {activePackage.title} ·{' '}
                   <span className="text-[#0A2E7A]">
-                    Initial Amount Due: {formatNaira(initialAmountDue)}
+                    Initial Amount Due: {formatNaira(pendingStudent ? pendingStudent.initialAmountDue : initialAmountDue)}
                   </span>
                 </div>
                 <div className="text-xs text-slate-600 font-mono-tabular">
-                  Post-1-Month Balance: {formatNaira(postOneMonthBalance)} · Total Tuition:{' '}
-                  {formatNaira(activePackage.fee)}
+                  Post-1-Month Balance: {formatNaira(pendingStudent ? pendingStudent.balanceDue : postOneMonthBalance)} · Total Tuition:{' '}
+                  {formatNaira(pendingStudent ? pendingStudent.totalFee : activePackage.fee)}
                 </div>
               </div>
 
@@ -709,9 +848,21 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
                 disabled={submitting}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A2E7A] px-6 py-3.5 text-sm font-bold text-white hover:bg-[#082361] disabled:opacity-60 transition-colors cursor-pointer whitespace-nowrap"
               >
-                <ShieldCheck className="h-4 w-4 text-[#F5B700]" />
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-[#F5B700]" />
+                ) : (
+                  <CreditCard className="h-4 w-4 text-[#F5B700]" />
+                )}
                 <span>
-                  {submitting ? 'Submitting Registration...' : 'Submit & Generate Admission Pass'}
+                  {checkoutStage === 'registering'
+                    ? 'Saving Registration...'
+                    : checkoutStage === 'awaiting_paystack'
+                    ? 'Waiting for Paystack...'
+                    : checkoutStage === 'verifying'
+                    ? 'Verifying Payment...'
+                    : pendingStudent
+                    ? `Retry Payment with Paystack (${formatNaira(pendingStudent.initialAmountDue)})`
+                    : `Pay with Paystack (${formatNaira(initialAmountDue)})`}
                 </span>
               </button>
             </div>
@@ -778,9 +929,9 @@ export const LandingAndRegistration: React.FC<LandingAndRegistrationProps> = ({
                 Present Your Receipt on Campus
               </h3>
               <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                After completing registration and your GTBank payment, present your printed
-                Admission &amp; Payment Pass along with your payment receipt at our Dutse office to
-                begin classroom theory and driving sessions.
+                After completing registration and your Paystack checkout (or GTBank walk-in deposit
+                at our campus desk), present your Official Tuition Receipt and Admission Pass at our
+                Dutse office to begin classroom theory and driving sessions.
               </p>
             </div>
 

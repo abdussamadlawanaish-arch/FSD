@@ -15,6 +15,7 @@ export interface StudentRegistrationPayload {
   packageId: CoursePackageId;
   paymentPlan: PaymentPlanId;
   fullName: string;
+  email: string;
   dateOfBirth: string;
   homeAddress: string;
   bloodGroup: string;
@@ -131,7 +132,26 @@ async function verifyPassword(plain: string, storedHash: string): Promise<boolea
 
 function sanitizeStudent(student: StoredStudentRecord): StudentRecord {
   const { passwordHash: _omit, ...rest } = student;
-  return rest;
+  const fallbackBalance =
+    rest.initialDepositVerified
+      ? Math.max(0, rest.totalFee - rest.amountPaid)
+      : rest.paymentPlan === 'deposit_75'
+      ? Math.max(0, rest.totalFee - rest.initialAmountDue)
+      : 0;
+
+  return {
+    ...rest,
+    email: rest.email || '',
+    balanceDue: typeof rest.balanceDue === 'number' ? rest.balanceDue : fallbackBalance,
+    paymentStatus:
+      rest.paymentStatus ||
+      (rest.finalBalanceVerified || (rest.paymentPlan === 'full_100' && rest.initialDepositVerified)
+        ? 'Verified'
+        : rest.initialDepositVerified
+        ? 'Partial'
+        : 'Pending'),
+    paymentMethod: rest.paymentMethod || (rest.paystackReference ? 'Paystack' : 'Walk-in / Cash'),
+  };
 }
 
 function sanitizeStaff(staff: StoredStaffAccount): InstructorAccount | AdminAccount {
@@ -271,6 +291,10 @@ export async function registerStudentAccount(
   if (!/^\d{11}$/.test(cleanNin)) {
     throw new Error('Please provide a valid 11-digit NIN Number.');
   }
+  const cleanEmail = payload.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    throw new Error('Please enter a valid email address for your Paystack receipt.');
+  }
   if (payload.password.trim().length < 5) {
     throw new Error('Password must be at least 5 characters.');
   }
@@ -295,6 +319,7 @@ export async function registerStudentAccount(
       : enforcedPlan === 'deposit_75'
       ? 48750
       : 65000;
+  const balanceDue = Math.max(0, totalFee - initialAmountDue);
 
   const nextId = generateNextStudentId(existing);
   const suffix = nextId.split('-').pop() || '001';
@@ -310,9 +335,13 @@ export async function registerStudentAccount(
     totalFee,
     initialAmountDue,
     amountPaid: 0,
+    balanceDue,
+    paymentStatus: 'Pending',
+    paymentMethod: 'Paystack',
     initialDepositVerified: false,
     finalBalanceVerified: false,
     fullName: payload.fullName.trim(),
+    email: cleanEmail,
     dateOfBirth: payload.dateOfBirth.trim(),
     homeAddress: payload.homeAddress.trim(),
     bloodGroup: payload.bloodGroup.trim(),
@@ -335,7 +364,7 @@ export async function registerStudentAccount(
       defensiveDriving: 0,
     },
     instructorFeedback:
-      'Newly enrolled student. Present your Admission & Payment Pass with GTBank receipt at the Dutse campus office to begin physical training.',
+      'Newly enrolled student. Complete your Paystack tuition checkout and present your Official Admission & Payment Receipt at the Dutse campus office to begin physical training.',
     oneMonthTrainingCompleted: false,
   };
 
@@ -350,10 +379,126 @@ export async function registerStudentAccount(
     session: {
       role: 'student',
       studentId: newStudent.id,
+      email: newStudent.email,
       displayName: newStudent.fullName,
     },
     student: sanitizeStudent(newStudent),
   };
+}
+
+export async function fetchStudentById(studentId: string): Promise<StudentRecord | null> {
+  const { data, error } = await supabase
+    .from('students')
+    .select('id, data')
+    .eq('id', studentId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Supabase student read error: ${error.message}`);
+  }
+  if (!data?.data) return null;
+  return sanitizeStudent(data.data as StoredStudentRecord);
+}
+
+export async function verifyPaystackPayment(params: {
+  reference: string;
+  studentId: string;
+  expectedAmountKobo: number;
+  isBalancePayment: boolean;
+  fallbackChannel?: string;
+}): Promise<StudentRecord> {
+  const { data, error } = await supabase.functions.invoke('verify-paystack', {
+    body: {
+      reference: params.reference,
+      studentId: params.studentId,
+      expectedAmountKobo: params.expectedAmountKobo,
+      isBalancePayment: params.isBalancePayment,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Could not verify Paystack transaction.');
+  }
+
+  const verificationResult = data as
+    | {
+        verified?: boolean;
+        channel?: string;
+        reference?: string;
+        message?: string;
+        error?: string;
+      }
+    | null;
+
+  if (!verificationResult?.verified) {
+    throw new Error(
+      verificationResult?.message ||
+        verificationResult?.error ||
+        'Paystack transaction verification returned unverified.'
+    );
+  }
+
+  const { data: row, error: fetchError } = await supabase
+    .from('students')
+    .select('id, data')
+    .eq('id', params.studentId)
+    .maybeSingle();
+
+  if (fetchError || !row?.data) {
+    throw new Error(fetchError?.message || 'Student record could not be refreshed after payment.');
+  }
+
+  const existing = row.data as StoredStudentRecord;
+  const resolvedChannel =
+    verificationResult.channel ||
+    params.fallbackChannel ||
+    existing.paymentChannel ||
+    'Paystack';
+  const resolvedRef = verificationResult.reference || params.reference;
+
+  const alreadySynced = params.isBalancePayment
+    ? existing.finalBalanceVerified &&
+      existing.balanceDue === 0 &&
+      existing.amountPaid >= existing.totalFee
+    : existing.initialDepositVerified && existing.paystackReference === resolvedRef;
+
+  if (alreadySynced) {
+    return sanitizeStudent(existing);
+  }
+
+  const updated: StoredStudentRecord = {
+    ...existing,
+    paymentMethod: 'Paystack',
+    paymentChannel: resolvedChannel,
+    paymentVerifiedAt: new Date().toISOString(),
+  };
+
+  if (params.isBalancePayment) {
+    updated.paystackBalanceReference = resolvedRef;
+    updated.paystackReference = existing.paystackReference || resolvedRef;
+    updated.initialDepositVerified = true;
+    updated.finalBalanceVerified = true;
+    updated.amountPaid = existing.totalFee;
+    updated.balanceDue = 0;
+    updated.paymentStatus = 'Verified';
+  } else {
+    updated.paystackReference = resolvedRef;
+    updated.initialDepositVerified = true;
+    updated.amountPaid = existing.initialAmountDue;
+    updated.balanceDue = Math.max(0, existing.totalFee - existing.initialAmountDue);
+    updated.finalBalanceVerified = existing.paymentPlan === 'full_100';
+    updated.paymentStatus = existing.paymentPlan === 'full_100' ? 'Verified' : 'Partial';
+  }
+
+  const { error: upsertError } = await supabase
+    .from('students')
+    .upsert({ id: updated.id, data: updated }, { onConflict: 'id' });
+
+  if (upsertError) {
+    throw new Error(`Supabase payment sync error: ${upsertError.message}`);
+  }
+
+  return sanitizeStudent(updated);
 }
 
 export async function registerStaffAccount(
@@ -500,12 +645,20 @@ export async function verifyStudentPayment(
   if (verifyAction === 'initial') {
     updated.initialDepositVerified = true;
     updated.amountPaid = existing.initialAmountDue;
+    updated.balanceDue = Math.max(0, existing.totalFee - existing.initialAmountDue);
     updated.finalBalanceVerified = existing.paymentPlan === 'full_100';
+    updated.paymentStatus = existing.paymentPlan === 'full_100' ? 'Verified' : 'Partial';
+    updated.paymentMethod = existing.paystackReference ? 'Paystack' : 'Walk-in / Cash';
+    updated.paymentChannel = existing.paymentChannel || 'Walk-in / Campus Verification';
     updated.paymentVerifiedAt = new Date().toISOString();
   } else if (verifyAction === 'final_25') {
     updated.initialDepositVerified = true;
     updated.finalBalanceVerified = true;
     updated.amountPaid = existing.totalFee;
+    updated.balanceDue = 0;
+    updated.paymentStatus = 'Verified';
+    updated.paymentMethod = existing.paystackReference ? existing.paymentMethod : 'Walk-in / Cash';
+    updated.paymentChannel = existing.paymentChannel || 'Walk-in / Campus Verification';
     updated.paymentVerifiedAt = new Date().toISOString();
   }
 
