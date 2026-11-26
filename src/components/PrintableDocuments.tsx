@@ -384,58 +384,69 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
 
             <div className="relative z-10">
               {/* Official Letterhead */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b-2 border-[#0A2E7A] pb-5">
-                <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                  <BrandLogo logoUrl={logoUrl} className="h-20 w-auto object-contain shrink-0" />
-                  <div>
-                    <h2 className="font-display text-2xl font-extrabold tracking-tight text-[#0A2E7A]">
+              <div className="flex flex-col sm:flex-row print:flex-row items-center justify-between gap-4 border-b-2 border-[#0A2E7A] pb-4 print:pb-3.5">
+                <div className="flex flex-col sm:flex-row print:flex-row items-center gap-3.5 text-center sm:text-left print:text-left min-w-0 flex-1">
+                  <BrandLogo
+                    logoUrl={logoUrl}
+                    className="h-16 sm:h-20 print:h-16 w-auto object-contain shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <h2 className="font-display text-xl sm:text-2xl print:text-xl font-extrabold tracking-tight text-[#0A2E7A]">
                       {SCHOOL_INFO.name}
                     </h2>
-                    <p className="text-sm font-medium text-slate-700">{SCHOOL_INFO.address}</p>
+                    <p className="text-xs sm:text-sm print:text-xs font-medium text-slate-700">
+                      {SCHOOL_INFO.address}
+                    </p>
                     <p className="text-xs text-slate-600 font-mono-tabular">
                       Phone: {SCHOOL_INFO.phone} · Email: {SCHOOL_INFO.email}
                     </p>
                   </div>
                 </div>
 
-                <div className="text-center sm:text-right">
-                  <div className="text-xs font-bold uppercase tracking-wider text-[#0A2E7A]">
+                <div className="shrink-0 text-center sm:text-right print:text-right rounded-xl border border-[#0A2E7A]/20 bg-[#0A2E7A]/[0.04] px-3.5 py-2.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#0A2E7A] whitespace-nowrap">
                     Official Tuition Receipt
                   </div>
-                  <div className="mt-1 font-mono-tabular text-lg font-extrabold text-slate-900">
+                  <div className="mt-1 font-mono-tabular text-base sm:text-lg print:text-base font-extrabold text-slate-900 whitespace-nowrap">
                     {student.receiptNumber}
                   </div>
-                  <div className="text-xs text-slate-500">Issued: {formattedIssueDate}</div>
+                  <div className="mt-0.5 text-[11px] text-slate-500 whitespace-nowrap">
+                    Issued: {formattedIssueDate}
+                  </div>
                 </div>
               </div>
 
               {/* Verified Stamp & Student Info */}
-              <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              <div className="mt-5 print:mt-4 flex flex-col sm:flex-row print:flex-row sm:items-center print:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/90 p-4 print:p-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                   <div>
                     <span className="text-xs text-slate-500 block">Received From</span>
                     <span className="font-bold text-slate-900">{student.fullName}</span>
                   </div>
                   <div>
                     <span className="text-xs text-slate-500 block">Student ID</span>
-                    <span className="font-mono-tabular font-bold text-[#0A2E7A]">{student.id}</span>
+                    <span className="font-mono-tabular font-bold text-[#0A2E7A] whitespace-nowrap">
+                      {student.id}
+                    </span>
                   </div>
                   <div>
                     <span className="text-xs text-slate-500 block">NIN Number</span>
-                    <span className="font-mono-tabular font-semibold text-slate-800">
+                    <span className="font-mono-tabular font-semibold text-slate-800 whitespace-nowrap">
                       {student.nin}
                     </span>
                   </div>
                   <div>
                     <span className="text-xs text-slate-500 block">Registered License Class</span>
-                    <span className="font-semibold text-slate-800">{student.licenseClass}</span>
+                    <span className="font-semibold text-slate-800 whitespace-nowrap">
+                      {student.licenseClass}
+                    </span>
                   </div>
                 </div>
 
-                <div className="shrink-0 self-start sm:self-center">
+                <div className="shrink-0 self-start sm:self-center print:self-center">
                   {student.amountPaid > 0 && student.initialDepositVerified ? (
-                    <div className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-700 bg-emerald-50 px-4 py-2 text-emerald-800">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+                    <div className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-700 bg-emerald-50 px-4 py-2 text-emerald-800 whitespace-nowrap">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-700 shrink-0" />
                       <div className="text-left">
                         <div className="text-xs font-extrabold tracking-widest uppercase">
                           VERIFIED PAID
@@ -446,8 +457,8 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="inline-flex items-center gap-2 rounded-xl border-2 border-amber-600 bg-amber-50 px-4 py-2 text-amber-800">
-                      <AlertCircle className="h-5 w-5 text-amber-600" />
+                    <div className="inline-flex items-center gap-2 rounded-xl border-2 border-amber-600 bg-amber-50 px-4 py-2 text-amber-800 whitespace-nowrap">
+                      <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
                       <div className="text-left">
                         <div className="text-xs font-extrabold tracking-widest uppercase">
                           PENDING VERIFICATION
@@ -460,35 +471,37 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
               </div>
 
               {/* Financial Breakdown Table */}
-              <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white/95">
+              <div className="mt-5 print:mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white/95">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-[#0A2E7A] text-white text-xs uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">Fee Description</th>
-                      <th className="px-4 py-3 font-semibold">Payment Plan / Channel</th>
-                      <th className="px-4 py-3 font-semibold text-right">Amount</th>
+                      <th className="px-4 py-2.5 font-semibold">Fee Description</th>
+                      <th className="px-4 py-2.5 font-semibold">Payment Plan / Channel</th>
+                      <th className="px-4 py-2.5 font-semibold text-right whitespace-nowrap">
+                        Amount
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     <tr>
-                      <td className="px-4 py-3.5">
+                      <td className="px-4 py-3 print:py-2.5">
                         <div className="font-semibold text-slate-900">{pkg.title}</div>
                         <div className="text-xs text-slate-500">{pkg.subtitle}</div>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-700">
+                      <td className="px-4 py-3 print:py-2.5 text-slate-700">
                         {student.paymentPlan === 'deposit_75'
                           ? '75% Initial Deposit Plan'
                           : '100% Full Payment Plan'}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono-tabular font-semibold text-slate-900">
+                      <td className="px-4 py-3 print:py-2.5 text-right font-mono-tabular font-semibold text-slate-900 whitespace-nowrap">
                         {formatNaira(student.totalFee)}
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-4 py-3.5 font-medium text-slate-800">
+                      <td className="px-4 py-3 print:py-2.5 font-medium text-slate-800">
                         Verified Payment Channel
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-slate-700" colSpan={2}>
+                      <td className="px-4 py-3 print:py-2.5 text-xs text-slate-700" colSpan={2}>
                         {student.paymentMethod === 'Paystack' ? (
                           <div>
                             <strong>Paystack Checkout</strong>
@@ -496,13 +509,13 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                               <span className="capitalize"> · Channel: {student.paymentChannel}</span>
                             )}
                             {student.paystackReference && (
-                              <span className="block font-mono-tabular font-bold text-[#0A2E7A] mt-0.5">
+                              <span className="block font-mono-tabular font-bold text-[#0A2E7A] mt-0.5 break-all">
                                 Transaction Ref: {student.paystackReference}
                               </span>
                             )}
                             {student.paystackBalanceReference &&
                               student.paystackBalanceReference !== student.paystackReference && (
-                                <span className="block font-mono-tabular font-bold text-emerald-700 mt-0.5">
+                                <span className="block font-mono-tabular font-bold text-emerald-700 mt-0.5 break-all">
                                   25% Balance Ref: {student.paystackBalanceReference}
                                 </span>
                               )}
@@ -521,19 +534,19 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                       </td>
                     </tr>
                     <tr className="bg-emerald-50/60">
-                      <td className="px-4 py-3.5 font-bold text-emerald-900" colSpan={2}>
+                      <td className="px-4 py-3 print:py-2.5 font-bold text-emerald-900" colSpan={2}>
                         Total Amount Paid &amp; Verified
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono-tabular text-base font-extrabold text-emerald-800">
+                      <td className="px-4 py-3 print:py-2.5 text-right font-mono-tabular text-base font-extrabold text-emerald-800 whitespace-nowrap">
                         {formatNaira(student.amountPaid)}
                       </td>
                     </tr>
                     <tr className="bg-slate-50">
-                      <td className="px-4 py-3.5 font-bold text-slate-900" colSpan={2}>
+                      <td className="px-4 py-3 print:py-2.5 font-bold text-slate-900" colSpan={2}>
                         Remaining Outstanding Balance
                       </td>
                       <td
-                        className={`px-4 py-3.5 text-right font-mono-tabular text-base font-extrabold ${
+                        className={`px-4 py-3 print:py-2.5 text-right font-mono-tabular text-base font-extrabold whitespace-nowrap ${
                           remainingBalance > 0 ? 'text-amber-700' : 'text-emerald-800'
                         }`}
                       >
@@ -545,7 +558,7 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
               </div>
 
               {/* Reference & Authorization Footer */}
-              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs text-slate-600">
+              <div className="mt-5 print:mt-4 grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-6 pt-4 print:pt-3 border-t border-slate-200 text-xs text-slate-600">
                 <div>
                   <div className="font-semibold text-slate-800">
                     {student.paystackReference
@@ -556,14 +569,14 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                     {paymentRef}
                   </div>
                   {remainingBalance > 0 && (
-                    <p className="mt-2 text-amber-800 font-medium">
+                    <p className="mt-1.5 text-amber-800 font-medium">
                       Note: Remaining 25% balance ({formatNaira(remainingBalance)}) is due after 1
                       month of training prior to FRSC certificate collection.
                     </p>
                   )}
                 </div>
-                <div className="sm:text-right flex flex-col justify-end">
-                  <div className="inline-block sm:ml-auto border-t border-slate-400 pt-2 px-6 text-center">
+                <div className="sm:text-right print:text-right flex flex-col justify-end">
+                  <div className="inline-block sm:ml-auto print:ml-auto border-t border-slate-400 pt-2 px-6 text-center whitespace-nowrap">
                     <div className="font-bold text-[#0A2E7A]">Authorized School Bursar / Admin</div>
                     <div>{SCHOOL_INFO.name}, Dutse</div>
                   </div>
