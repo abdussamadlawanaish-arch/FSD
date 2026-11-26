@@ -2,7 +2,12 @@ export type CoursePackageId = 'full_beginner' | 'certificate_only';
 export type PaymentPlanId = 'deposit_75' | 'full_100';
 export type UserRole = 'student' | 'instructor' | 'admin';
 export type AuthMode = 'signin' | 'signup';
-export type PrintableDocType = 'admission_pass' | 'tuition_receipt' | 'frsc_clearance';
+export type PrintableDocType =
+  | 'admission_pass'
+  | 'tuition_receipt'
+  | 'frsc_clearance'
+  | 'school_certificate'
+  | 'frsc_certificate';
 
 export interface PracticalScores {
   steering: number;
@@ -61,6 +66,16 @@ export interface StudentRecord {
   instructorFeedback: string;
   oneMonthTrainingCompleted: boolean;
   trainingCompletedAt?: string;
+
+  // School & FRSC Certificates
+  schoolCertificateIssued?: boolean;
+  certificateIssuedAt?: string;
+  certificateNotificationMessage?: string;
+  frscCertificateNumber?: string;
+  frscCertificateUrl?: string;
+  frscCertificateFileName?: string;
+  frscCertificateMimeType?: string;
+  frscCertificateIssuedAt?: string;
 }
 
 export interface InstructorAccount {
@@ -207,4 +222,8 @@ export function isFullyPaid(student: StudentRecord): boolean {
 
 export function isFrscEligible(student: StudentRecord): boolean {
   return student.oneMonthTrainingCompleted && isFullyPaid(student);
+}
+
+export function isClearedForSchoolCertificate(student: StudentRecord): boolean {
+  return isFullyPaid(student) || student.oneMonthTrainingCompleted;
 }

@@ -9,6 +9,7 @@ import {
   PracticalScores,
   StudentRecord,
   UserRole,
+  isClearedForSchoolCertificate,
 } from './types';
 
 export interface StudentRegistrationPayload {
@@ -670,6 +671,146 @@ export async function verifyStudentPayment(
   }
 
   return sanitizeStudent(updated);
+}
+
+export interface StudentCertificatePatch {
+  schoolCertificateIssued?: boolean;
+  certificateIssuedAt?: string;
+  certificateNotificationMessage?: string;
+  frscCertificateNumber?: string;
+  frscCertificateUrl?: string;
+  frscCertificateFileName?: string;
+  frscCertificateMimeType?: string;
+  frscCertificateIssuedAt?: string;
+}
+
+export async function updateStudentCertificate(
+  studentId: string,
+  patch: StudentCertificatePatch
+): Promise<StudentRecord> {
+  const allStudents = await getAllRawStudents();
+  const existing = allStudents.find((s) => s.id === studentId);
+  if (!existing) {
+    throw new Error('Student record not found.');
+  }
+
+  if (typeof patch.frscCertificateUrl === 'string' && patch.frscCertificateUrl !== '') {
+    const isValidDataUrl = /^data:(image\/(png|jpe?g|webp|gif)|application\/pdf);base64,[A-Za-z0-9+/=]+$/i.test(
+      patch.frscCertificateUrl
+    );
+    if (!isValidDataUrl) {
+      throw new Error('FRSC certificate must be a valid PDF or image file (PNG, JPG, WebP, GIF).');
+    }
+    if (patch.frscCertificateUrl.length > 6_800_000) {
+      throw new Error('FRSC certificate file exceeds the 5MB maximum upload limit.');
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const updated: StoredStudentRecord = { ...existing };
+
+  if (typeof patch.schoolCertificateIssued === 'boolean') {
+    updated.schoolCertificateIssued = patch.schoolCertificateIssued;
+    if (patch.schoolCertificateIssued) {
+      updated.certificateIssuedAt =
+        patch.certificateIssuedAt || existing.certificateIssuedAt || nowIso;
+      updated.certificateNotificationMessage =
+        patch.certificateNotificationMessage ||
+        'Your official FUSAHA Driving School Certificate has been issued and is ready to view and print in My Certificates.';
+    } else {
+      updated.certificateNotificationMessage = undefined;
+    }
+  }
+
+  if (typeof patch.certificateIssuedAt === 'string' && patch.certificateIssuedAt.trim() !== '') {
+    updated.certificateIssuedAt = patch.certificateIssuedAt.trim();
+  }
+
+  if (typeof patch.frscCertificateNumber === 'string') {
+    updated.frscCertificateNumber = patch.frscCertificateNumber.trim() || undefined;
+  }
+
+  if (typeof patch.frscCertificateIssuedAt === 'string') {
+    updated.frscCertificateIssuedAt = patch.frscCertificateIssuedAt.trim() || undefined;
+  }
+
+  if (typeof patch.frscCertificateUrl === 'string') {
+    if (patch.frscCertificateUrl === '') {
+      updated.frscCertificateUrl = undefined;
+      updated.frscCertificateFileName = undefined;
+      updated.frscCertificateMimeType = undefined;
+      updated.frscCertificateIssuedAt = undefined;
+    } else {
+      updated.frscCertificateUrl = patch.frscCertificateUrl;
+      updated.frscCertificateFileName = patch.frscCertificateFileName || 'FRSC-Certificate';
+      updated.frscCertificateMimeType = patch.frscCertificateMimeType;
+      updated.frscCertificateIssuedAt =
+        patch.frscCertificateIssuedAt || existing.frscCertificateIssuedAt || nowIso.slice(0, 10);
+      updated.certificateNotificationMessage =
+        'Your official FRSC Driving Certificate has been uploaded by Admin and is ready to view, download, or print in My Certificates.';
+    }
+  }
+
+  if (typeof patch.certificateNotificationMessage === 'string') {
+    updated.certificateNotificationMessage = patch.certificateNotificationMessage || undefined;
+  }
+
+  const { error } = await supabase
+    .from('students')
+    .upsert({ id: updated.id, data: updated }, { onConflict: 'id' });
+  if (error) {
+    throw new Error(`Supabase certificate update error: ${error.message}`);
+  }
+
+  return sanitizeStudent(updated);
+}
+
+export async function bulkIssueSchoolCertificates(
+  mode: 'cleared' | 'all'
+): Promise<{ updatedStudents: StudentRecord[]; issuedCount: number }> {
+  const allStudents = await getAllRawStudents();
+  const nowIso = new Date().toISOString();
+
+  const targets = allStudents.filter((raw) => {
+    if (mode === 'all') return true;
+    const sanitized = sanitizeStudent(raw);
+    return isClearedForSchoolCertificate(sanitized);
+  });
+
+  if (targets.length === 0) {
+    return {
+      updatedStudents: allStudents.map(sanitizeStudent),
+      issuedCount: 0,
+    };
+  }
+
+  const targetMap = new Map<string, StoredStudentRecord>();
+  for (const t of targets) {
+    const updated: StoredStudentRecord = {
+      ...t,
+      schoolCertificateIssued: true,
+      certificateIssuedAt: t.certificateIssuedAt || nowIso,
+      certificateNotificationMessage:
+        'Congratulations! Your official FUSAHA Driving School Certificate has been issued by Admin and is ready to view and print in My Certificates.',
+    };
+    targetMap.set(updated.id, updated);
+  }
+
+  const rows = Array.from(targetMap.values()).map((student) => ({
+    id: student.id,
+    data: student,
+  }));
+
+  const { error } = await supabase.from('students').upsert(rows, { onConflict: 'id' });
+  if (error) {
+    throw new Error(`Supabase bulk certificate issuance error: ${error.message}`);
+  }
+
+  const updatedAll = allStudents.map((s) => sanitizeStudent(targetMap.get(s.id) || s));
+  return {
+    updatedStudents: updatedAll,
+    issuedCount: rows.length,
+  };
 }
 
 export async function fetchStaffDirectory(): Promise<{

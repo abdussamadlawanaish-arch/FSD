@@ -9,6 +9,8 @@ import {
   Building2,
   Award,
   AlertCircle,
+  Download,
+  FileCheck2,
 } from 'lucide-react';
 import {
   BANK_DETAILS,
@@ -22,6 +24,154 @@ import {
   isFullyPaid,
 } from '../types';
 import { BrandLogo, DocumentWatermark } from './BrandLogo';
+
+const CalligraphicSignatureSvg: React.FC<{ className?: string }> = ({ className = 'h-11 w-36' }) => (
+  <svg
+    viewBox="0 0 220 72"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    aria-label="Authorized Signature"
+  >
+    <path
+      d="M18 52 C26 24, 42 12, 54 18 C62 22, 42 46, 36 52 C48 44, 68 26, 78 32 C84 36, 70 50, 78 52 C88 54, 102 32, 112 24 C118 19, 114 48, 124 46 C132 44, 140 30, 148 34 C154 37, 148 48, 158 46 C168 44, 182 32, 198 34"
+      stroke="#1e3a8a"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M14 58 C64 52, 134 48, 206 50"
+      stroke="#1e3a8a"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      opacity="0.85"
+    />
+    <path
+      d="M42 26 C58 24, 78 22, 92 24"
+      stroke="#1e3a8a"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      opacity="0.7"
+    />
+  </svg>
+);
+
+const VerificationStampSvg: React.FC<{ idPrefix: string; className?: string }> = ({
+  idPrefix,
+  className = 'h-16 w-16',
+}) => {
+  const pathId = `${idPrefix}-stamp-ring`;
+  return (
+    <svg
+      viewBox="0 0 120 120"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-label="FUSAHA Driving School Verified & Paid Official Stamp"
+    >
+      <defs>
+        <path id={pathId} d="M 60,60 m -41,0 a 41,41 0 1,1 82,0 a 41,41 0 1,1 -82,0" />
+      </defs>
+      <circle cx="60" cy="60" r="54" fill="none" stroke="#1e3a8a" strokeWidth="2" opacity="0.75" />
+      <circle
+        cx="60"
+        cy="60"
+        r="49"
+        fill="none"
+        stroke="#1e3a8a"
+        strokeWidth="1"
+        strokeDasharray="3 2"
+        opacity="0.65"
+      />
+      <circle cx="60" cy="60" r="30" fill="none" stroke="#1e3a8a" strokeWidth="1.4" opacity="0.75" />
+      <text
+        fill="#1e3a8a"
+        fontSize="7.4"
+        fontWeight="700"
+        letterSpacing="1.05"
+        opacity="0.85"
+      >
+        <textPath href={`#${pathId}`} startOffset="2%">
+          FUSAHA DRIVING SCHOOL • VERIFIED &amp; PAID • DUTSE •
+        </textPath>
+      </text>
+      <text
+        x="60"
+        y="57"
+        textAnchor="middle"
+        fill="#1e3a8a"
+        fontSize="8.5"
+        fontWeight="800"
+        letterSpacing="0.8"
+        opacity="0.9"
+      >
+        VERIFIED
+      </text>
+      <text
+        x="60"
+        y="68"
+        textAnchor="middle"
+        fill="#1e3a8a"
+        fontSize="7.5"
+        fontWeight="700"
+        letterSpacing="0.6"
+        opacity="0.85"
+      >
+        &amp; PAID
+      </text>
+    </svg>
+  );
+};
+
+const DeterministicQrSvg: React.FC<{ seed: string; className?: string }> = ({
+  seed,
+  className = 'h-16 w-16',
+}) => {
+  const size = 15;
+  let hash = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  const cells: Array<{ x: number; y: number }> = [];
+  const isFinder = (r: number, c: number) =>
+    (r < 5 && c < 5) || (r < 5 && c >= size - 5) || (r >= size - 5 && c < 5);
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (isFinder(r, c)) {
+        const lr = r >= size - 5 ? r - (size - 5) : r;
+        const lc = c >= size - 5 ? c - (size - 5) : c;
+        const outer = lr === 0 || lr === 4 || lc === 0 || lc === 4;
+        const inner = lr === 2 && lc === 2;
+        if (outer || inner) {
+          cells.push({ x: c, y: r });
+        }
+      } else {
+        hash ^= (r * 31 + c * 17) & 0xff;
+        hash = Math.imul(hash, 16777619);
+        if ((hash >>> 0) % 2 === 0) {
+          cells.push({ x: c, y: r });
+        }
+      }
+    }
+  }
+
+  return (
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className={className}
+      shapeRendering="crispEdges"
+      aria-label="Certificate Verification QR Code"
+    >
+      <rect x="0" y="0" width={size} height={size} fill="#ffffff" />
+      {cells.map((cell, idx) => (
+        <rect key={idx} x={cell.x} y={cell.y} width="1" height="1" fill="#0A2E7A" />
+      ))}
+    </svg>
+  );
+};
 
 interface PrintableDocumentModalProps {
   student: StudentRecord;
@@ -79,13 +229,36 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
   const frscReady = isFrscEligible(student);
   const fullyPaid = isFullyPaid(student);
 
+  const certVerificationCode = `FDS-CERT-${student.id}-${student.nin.slice(-4)}`;
+  const formattedCertDate = new Date(
+    student.certificateIssuedAt || student.trainingCompletedAt || student.registeredAt
+  ).toLocaleDateString('en-NG', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const formattedFrscCertDate = new Date(
+    student.frscCertificateIssuedAt || student.certificateIssuedAt || student.registeredAt
+  ).toLocaleDateString('en-NG', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const isFrscPdf =
+    Boolean(student.frscCertificateMimeType?.includes('pdf')) ||
+    Boolean(student.frscCertificateUrl?.startsWith('data:application/pdf'));
+
   return (
     <div
       className="print-only-container fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/70 p-3 sm:p-6 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-4xl my-2 sm:my-6">
+      <div
+        className={`relative w-full my-2 sm:my-6 ${
+          docType === 'school_certificate' ? 'max-w-5xl' : 'max-w-4xl'
+        }`}
+      >
         {/* Top Action Bar (Hidden in Print) */}
         <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 shadow-lg border border-slate-200">
           <div className="flex items-center gap-2.5 text-sm font-semibold text-[#0A2E7A]">
@@ -94,10 +267,27 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
               {docType === 'admission_pass' && 'FUSAHA DRIVING SCHOOL — Admission & Payment Pass'}
               {docType === 'tuition_receipt' && 'FUSAHA DRIVING SCHOOL — Official Tuition Receipt'}
               {docType === 'frsc_clearance' && 'FRSC Driving School Certificate Clearance'}
+              {docType === 'school_certificate' &&
+                'FUSAHA DRIVING SCHOOL — Official Driving Certificate (A4 Landscape)'}
+              {docType === 'frsc_certificate' && 'FRSC Official Driving Certificate'}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {(docType !== 'frsc_clearance' || frscReady) && (
+            {docType === 'frsc_certificate' && student.frscCertificateUrl && (
+              <a
+                href={student.frscCertificateUrl}
+                download={
+                  student.frscCertificateFileName ||
+                  `FRSC-Certificate-${student.id}.${isFrscPdf ? 'pdf' : 'png'}`
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#0A2E7A] bg-white px-3.5 py-2 text-sm font-semibold text-[#0A2E7A] hover:bg-slate-50 transition-colors whitespace-nowrap"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download</span>
+              </a>
+            )}
+            {((docType !== 'frsc_clearance' || frscReady) &&
+              (docType !== 'frsc_certificate' || Boolean(student.frscCertificateUrl))) && (
               <button
                 type="button"
                 onClick={handlePrint}
@@ -558,7 +748,7 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
               </div>
 
               {/* Reference & Authorization Footer */}
-              <div className="mt-5 print:mt-4 grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-6 pt-4 print:pt-3 border-t border-slate-200 text-xs text-slate-600">
+              <div className="mt-4 print:mt-3 grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 pt-3 print:pt-2.5 border-t border-slate-200 text-xs text-slate-600 items-end">
                 <div>
                   <div className="font-semibold text-slate-800">
                     {student.paystackReference
@@ -575,8 +765,17 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                     </p>
                   )}
                 </div>
-                <div className="sm:text-right print:text-right flex flex-col justify-end">
-                  <div className="inline-block sm:ml-auto print:ml-auto border-t border-slate-400 pt-2 px-6 text-center whitespace-nowrap">
+                <div className="sm:text-right print:text-right flex flex-col items-center sm:items-end print:items-end justify-end">
+                  <div className="flex items-end gap-2.5 mb-1">
+                    {student.amountPaid > 0 && student.initialDepositVerified && (
+                      <VerificationStampSvg
+                        idPrefix={`receipt-${student.id}`}
+                        className="h-14 w-14 -rotate-6 shrink-0"
+                      />
+                    )}
+                    <CalligraphicSignatureSvg className="h-11 w-36 shrink-0" />
+                  </div>
+                  <div className="inline-block border-t border-slate-400 pt-1.5 px-5 text-center whitespace-nowrap">
                     <div className="font-bold text-[#0A2E7A]">Authorized School Bursar / Admin</div>
                     <div>{SCHOOL_INFO.name}, Dutse</div>
                   </div>
@@ -730,6 +929,217 @@ export const PrintableDocumentModal: React.FC<PrintableDocumentModalProps> = ({
                     </div>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* FUSAHA DRIVING SCHOOL CERTIFICATE (A4 LANDSCAPE) */}
+        {docType === 'school_certificate' && (
+          <div className="print-document-sheet print-certificate-landscape relative overflow-hidden rounded-2xl border-4 border-[#0A2E7A] bg-white p-4 sm:p-6 shadow-xl">
+            <DocumentWatermark logoUrl={logoUrl} />
+
+            {/* Decorative Inner Gold Frame */}
+            <div className="relative z-10 rounded-xl border-2 border-[#F5B700] p-5 sm:p-7 print:p-5">
+              {/* Top Header */}
+              <div className="flex flex-col sm:flex-row print:flex-row items-center justify-between gap-4 border-b-2 border-[#0A2E7A]/20 pb-4">
+                <div className="flex items-center gap-4">
+                  <BrandLogo
+                    logoUrl={logoUrl}
+                    className="h-16 sm:h-20 print:h-16 w-auto object-contain shrink-0"
+                  />
+                  <div className="text-left">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-[#C99100]">
+                      Federal Republic of Nigeria · FRSC Accredited Center
+                    </div>
+                    <h2 className="font-display text-2xl sm:text-3xl print:text-2xl font-extrabold tracking-tight text-[#0A2E7A]">
+                      {SCHOOL_INFO.name}
+                    </h2>
+                    <p className="text-xs font-medium text-slate-700">
+                      {SCHOOL_INFO.address} · Tel: {SCHOOL_INFO.phone}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 text-center sm:text-right print:text-right">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    FRSC Clearance Number
+                  </div>
+                  <div className="font-mono-tabular text-sm font-extrabold text-[#0A2E7A] whitespace-nowrap">
+                    {student.clearanceNumber}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-600 whitespace-nowrap">
+                    Issued: <strong>{formattedCertDate}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Certificate Main Body */}
+              <div className="mt-5 print:mt-4 text-center space-y-2.5">
+                <div className="inline-block rounded-full border border-[#0A2E7A]/25 bg-[#0A2E7A]/[0.04] px-4 py-1 text-[11px] font-extrabold uppercase tracking-[0.2em] text-[#0A2E7A]">
+                  Certificate of Driving Training Completion
+                </div>
+                <p className="text-xs sm:text-sm text-slate-600">
+                  This official Driving School Certificate is proudly awarded to
+                </p>
+                <div className="font-display text-2xl sm:text-4xl print:text-3xl font-extrabold uppercase tracking-tight text-[#0A2E7A] py-1">
+                  {student.fullName}
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-mono-tabular text-slate-700">
+                  <span>
+                    Student ID: <strong className="text-[#0A2E7A]">{student.id}</strong>
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    NIN: <strong>{student.nin}</strong>
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    License Class: <strong className="text-[#0A2E7A]">{student.licenseClass}</strong>
+                  </span>
+                </div>
+
+                <p className="mx-auto max-w-3xl pt-2 text-xs sm:text-sm leading-relaxed text-slate-700">
+                  for successfully fulfilling the prescribed classroom highway theory, road safety
+                  standards, and practical behind-the-wheel driving curriculum under the{' '}
+                  <strong>{pkg.title}</strong> in accordance with the{' '}
+                  <strong>{SCHOOL_INFO.licensingAuthority}</strong> accreditation guidelines.
+                </p>
+              </div>
+
+              {/* Footer: Verification QR Code + Official Stamp & Calligraphic Signature */}
+              <div className="mt-6 print:mt-5 grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-4 items-end border-t border-slate-200 pt-4">
+                {/* Left: QR / Verification Code */}
+                <div className="flex items-center gap-3 justify-center sm:justify-start print:justify-start">
+                  <div className="rounded-lg border border-[#0A2E7A]/25 bg-white p-1.5 shrink-0">
+                    <DeterministicQrSvg
+                      seed={`${certVerificationCode}|${student.clearanceNumber}|${student.fullName}`}
+                      className="h-14 w-14"
+                    />
+                  </div>
+                  <div className="text-left text-[11px] text-slate-600">
+                    <div className="font-bold uppercase tracking-wider text-[#0A2E7A]">
+                      Verification Code
+                    </div>
+                    <div className="font-mono-tabular font-bold text-slate-900 whitespace-nowrap">
+                      {certVerificationCode}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      Theory: {student.theoryScore}% · Practical: {avgPractical}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center: Official Circular Verification Stamp */}
+                <div className="flex flex-col items-center justify-center">
+                  <VerificationStampSvg
+                    idPrefix={`cert-${student.id}`}
+                    className="h-16 w-16 -rotate-6"
+                  />
+                  <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-[#1e3a8a]">
+                    Official School Seal
+                  </span>
+                </div>
+
+                {/* Right: Director / Bursar Calligraphic Signature */}
+                <div className="flex flex-col items-center sm:items-end print:items-end justify-end">
+                  <CalligraphicSignatureSvg className="h-11 w-36 mb-1" />
+                  <div className="border-t border-slate-400 pt-1.5 px-5 text-center text-xs whitespace-nowrap">
+                    <div className="font-bold text-[#0A2E7A]">School Director / Bursar</div>
+                    <div className="text-slate-600">{SCHOOL_INFO.name}, Dutse</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* OFFICIAL FRSC CERTIFICATE VIEWER & PRINTER */}
+        {docType === 'frsc_certificate' && (
+          <div className="print-document-sheet relative overflow-hidden rounded-2xl border-2 border-[#0A2E7A] bg-white p-6 sm:p-8 shadow-xl">
+            <DocumentWatermark logoUrl={logoUrl} />
+
+            <div className="relative z-10 space-y-5">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row print:flex-row items-center justify-between gap-4 border-b-2 border-[#0A2E7A] pb-4">
+                <div className="flex items-center gap-3.5">
+                  <BrandLogo logoUrl={logoUrl} className="h-16 w-auto object-contain shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#0A2E7A]">
+                      {SCHOOL_INFO.licensingAuthority}
+                    </div>
+                    <h2 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900">
+                      Official FRSC Driving Certificate
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Candidate: <strong>{student.fullName}</strong> ({student.id}) ·{' '}
+                      {student.licenseClass}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 text-center sm:text-right print:text-right rounded-xl border border-[#0A2E7A]/20 bg-[#0A2E7A]/[0.04] px-3.5 py-2">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#0A2E7A] whitespace-nowrap">
+                    FRSC Certificate No.
+                  </div>
+                  <div className="font-mono-tabular text-sm font-extrabold text-slate-900 whitespace-nowrap">
+                    {student.frscCertificateNumber || student.clearanceNumber}
+                  </div>
+                  <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                    Issued: {formattedFrscCertDate}
+                  </div>
+                </div>
+              </div>
+
+              {!student.frscCertificateUrl ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
+                  <FileCheck2 className="mx-auto h-10 w-10 text-amber-600" />
+                  <h3 className="mt-3 font-display text-lg font-bold text-slate-900">
+                    FRSC Certificate Pending Upload
+                  </h3>
+                  <p className="mt-1.5 text-sm text-slate-600 max-w-md mx-auto">
+                    Your FRSC Clearance Number is{' '}
+                    <strong className="font-mono-tabular">{student.clearanceNumber}</strong>. Once
+                    Administration uploads your official FRSC Certificate file, you can view,
+                    download, and print it here.
+                  </p>
+                </div>
+              ) : isFrscPdf ? (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
+                    <iframe
+                      src={student.frscCertificateUrl}
+                      title="Official FRSC Driving Certificate PDF"
+                      className="w-full h-[540px] bg-white"
+                    />
+                  </div>
+                  <div className="no-print flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                    <span>
+                      Attached Document:{' '}
+                      <strong className="font-mono-tabular">
+                        {student.frscCertificateFileName || 'FRSC-Certificate.pdf'}
+                      </strong>
+                    </span>
+                    <a
+                      href={student.frscCertificateUrl}
+                      download={
+                        student.frscCertificateFileName || `FRSC-Certificate-${student.id}.pdf`
+                      }
+                      className="inline-flex items-center gap-1.5 font-bold text-[#0A2E7A] hover:underline"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download PDF File</span>
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex flex-col items-center">
+                  <img
+                    src={student.frscCertificateUrl}
+                    alt={`FRSC Certificate for ${student.fullName}`}
+                    className="max-h-[650px] w-auto object-contain rounded-lg shadow-xs"
+                  />
+                </div>
               )}
             </div>
           </div>

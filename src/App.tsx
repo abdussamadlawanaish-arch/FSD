@@ -15,6 +15,8 @@ import {
 import { supabase } from './supabaseClient';
 import {
   StaffRegistrationPayload,
+  StudentCertificatePatch,
+  bulkIssueSchoolCertificates,
   fetchSchoolLogo,
   fetchStaffDirectory,
   fetchStudents,
@@ -22,6 +24,7 @@ import {
   registerStaffAccount,
   updateSchoolLogoInSupabase,
   updateStudentAssessment,
+  updateStudentCertificate,
   verifyStudentPayment,
 } from './api';
 import { BrandLogo, GlobalPageWatermark } from './components/BrandLogo';
@@ -214,6 +217,28 @@ export default function App() {
   const handleUpdateLogo = async (dataUrl: string | null) => {
     const resolved = await updateSchoolLogoInSupabase(dataUrl || '');
     setLogoUrl(resolved);
+  };
+
+  const handleUpdateCertificate = async (
+    studentId: string,
+    patch: StudentCertificatePatch
+  ) => {
+    const updated = await updateStudentCertificate(studentId, patch);
+    setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    setActiveDocument((prev) =>
+      prev && prev.student.id === updated.id ? { ...prev, student: updated } : prev
+    );
+  };
+
+  const handleBulkIssueCertificates = async (mode: 'cleared' | 'all'): Promise<number> => {
+    const result = await bulkIssueSchoolCertificates(mode);
+    setStudents(result.updatedStudents);
+    setActiveDocument((prev) => {
+      if (!prev) return null;
+      const fresh = result.updatedStudents.find((s) => s.id === prev.student.id);
+      return fresh ? { ...prev, student: fresh } : prev;
+    });
+    return result.issuedCount;
   };
 
   const handleGoToStudentRegistration = () => {
@@ -424,6 +449,8 @@ export default function App() {
             logoUrl={logoUrl}
             onUpdateLogo={handleUpdateLogo}
             onVerifyPayment={handleVerifyPayment}
+            onUpdateCertificate={handleUpdateCertificate}
+            onBulkIssueCertificates={handleBulkIssueCertificates}
             onOpenDocument={(student, docType) => setActiveDocument({ student, docType })}
             onLogout={handleLogout}
           />

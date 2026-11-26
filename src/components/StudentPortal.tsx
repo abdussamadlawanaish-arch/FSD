@@ -12,6 +12,9 @@ import {
   Printer,
   Receipt,
   AlertCircle,
+  Bell,
+  Download,
+  FileCheck2,
 } from 'lucide-react';
 import {
   COURSE_PACKAGES,
@@ -197,6 +200,49 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         </div>
       </div>
 
+      {/* In-Portal Certificate Notification Banner */}
+      {(student.schoolCertificateIssued || student.frscCertificateUrl) && (
+        <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/95 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-emerald-700 p-2 text-white shrink-0 mt-0.5">
+              <Bell className="h-4 w-4 text-[#F5B700]" />
+            </div>
+            <div>
+              <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-800">
+                Certificate Notification
+              </div>
+              <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                {student.certificateNotificationMessage ||
+                  'Your official certificate has been issued by FUSAHA Driving School Administration and is ready below.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {student.schoolCertificateIssued && (
+              <button
+                type="button"
+                onClick={() => onOpenDocument(student, 'school_certificate')}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Award className="h-4 w-4 text-[#F5B700]" />
+                <span>Print School Certificate</span>
+              </button>
+            )}
+            {student.frscCertificateUrl && (
+              <button
+                type="button"
+                onClick={() => onOpenDocument(student, 'frsc_certificate')}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A2E7A] px-4 py-2 text-xs font-bold text-white hover:bg-[#082361] transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <FileCheck2 className="h-4 w-4 text-[#F5B700]" />
+                <span>View FRSC Certificate</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Key Metrics Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border border-slate-200 bg-white/95 p-5">
@@ -255,6 +301,165 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             {fullyPaid
               ? 'Full tuition balance settled'
               : `Day ${Math.min(daysElapsed, 30)} of 30 training window`}
+          </div>
+        </div>
+      </div>
+
+      {/* MY CERTIFICATES SECTION */}
+      <div className="rounded-2xl border border-[#0A2E7A]/20 bg-white/95 p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-[#0A2E7A]">
+              Graduation &amp; Licensing Credentials
+            </div>
+            <h2 className="mt-0.5 font-display text-xl font-extrabold text-slate-900">
+              My Certificates
+            </h2>
+          </div>
+          <div className="text-xs font-mono-tabular text-slate-600">
+            FRSC Clearance No:{' '}
+            <strong className="text-[#0A2E7A]">{student.clearanceNumber}</strong>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card 1: FUSAHA Driving School Certificate */}
+          <div
+            className={`rounded-xl border p-5 flex flex-col justify-between gap-4 ${
+              student.schoolCertificateIssued
+                ? 'border-emerald-300 bg-emerald-50/40'
+                : 'border-slate-200 bg-slate-50/70'
+            }`}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold text-[#0A2E7A] text-sm">
+                  <Award className="h-5 w-5 text-[#D99B00]" />
+                  <span>FUSAHA Driving School Certificate</span>
+                </div>
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase whitespace-nowrap ${
+                    student.schoolCertificateIssued
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {student.schoolCertificateIssued
+                    ? 'Issued & Ready'
+                    : 'Pending Completion/Clearance'}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {student.schoolCertificateIssued
+                  ? `Awarded to ${student.fullName} for ${student.licenseClass}. Ready to print in A4 landscape format with school seal and verification QR code.`
+                  : 'Once your tuition clearance or 1-month campus training is verified and issued by Administration, your A4 landscape School Driving Certificate will unlock here.'}
+              </p>
+
+              {student.certificateIssuedAt && student.schoolCertificateIssued && (
+                <div className="text-[11px] font-mono-tabular text-slate-500">
+                  Issued on:{' '}
+                  {new Date(student.certificateIssuedAt).toLocaleDateString('en-NG', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              disabled={!student.schoolCertificateIssued}
+              onClick={() => onOpenDocument(student, 'school_certificate')}
+              className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-colors whitespace-nowrap ${
+                student.schoolCertificateIssued
+                  ? 'bg-[#0A2E7A] text-white hover:bg-[#082361] cursor-pointer'
+                  : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              <Printer className="h-4 w-4 text-[#F5B700]" />
+              <span>View &amp; Print School Certificate</span>
+            </button>
+          </div>
+
+          {/* Card 2: FRSC Official Certificate */}
+          <div
+            className={`rounded-xl border p-5 flex flex-col justify-between gap-4 ${
+              student.frscCertificateUrl
+                ? 'border-emerald-300 bg-emerald-50/40'
+                : 'border-slate-200 bg-slate-50/70'
+            }`}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-bold text-[#0A2E7A] text-sm">
+                  <FileCheck2 className="h-5 w-5 text-emerald-700" />
+                  <span>FRSC Official Certificate</span>
+                </div>
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase whitespace-nowrap ${
+                    student.frscCertificateUrl
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {student.frscCertificateUrl ? 'Issued & Ready' : 'Pending Upload'}
+                </span>
+              </div>
+
+              <div className="text-xs text-slate-700 space-y-1">
+                <div>
+                  FRSC Number:{' '}
+                  <strong className="font-mono-tabular text-[#0A2E7A]">
+                    {student.frscCertificateNumber || student.clearanceNumber}
+                  </strong>
+                </div>
+                {student.frscCertificateIssuedAt && (
+                  <div className="text-[11px] font-mono-tabular text-slate-500">
+                    FRSC Issue Date: {student.frscCertificateIssuedAt}
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {student.frscCertificateUrl
+                  ? 'Your official Federal Road Safety Commission certificate has been attached by Administration. View, download, or print it anytime.'
+                  : 'Administration will upload your official FRSC Certificate file here once processed with the Federal Road Safety Commission.'}
+              </p>
+            </div>
+
+            {student.frscCertificateUrl ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenDocument(student, 'frsc_certificate')}
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>View / Download &amp; Print FRSC Certificate</span>
+                </button>
+                <a
+                  href={student.frscCertificateUrl}
+                  download={
+                    student.frscCertificateFileName || `FRSC-Certificate-${student.id}`
+                  }
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 hover:border-[#0A2E7A] whitespace-nowrap"
+                  title="Download FRSC Certificate"
+                >
+                  <Download className="h-4 w-4" />
+                </a>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenDocument(student, 'frsc_clearance')}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:border-[#0A2E7A] transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Award className="h-4 w-4 text-[#0A2E7A]" />
+                <span>View FRSC Clearance Eligibility</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
